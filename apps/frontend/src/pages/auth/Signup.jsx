@@ -1,74 +1,40 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Card, CardHeader, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Trophy, Loader2 } from 'lucide-react';
-import api from '@/lib/api';
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import api from '../../lib/api';
 
 export default function Signup() {
-  const navigate = useNavigate();
-  const [form, setForm] = useState({ orgName: '', email: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ orgName: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const handleChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    if (form.password !== form.confirmPassword) return setError('Passwords do not match');
     setLoading(true);
     try {
-      await api.post('/auth/signup', { orgName: form.orgName, email: form.email, password: form.password });
-      navigate('/verify-email', { state: { email: form.email } });
+      await api.post('/auth/signup', form);
+      toast.success('Account created! Please login.');
+      navigate('/login');
     } catch (err) {
-      setError(err.response?.data?.error || 'Something went wrong');
+      toast.error(err.response?.data?.error || 'Signup failed');
     } finally { setLoading(false); }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center">
-            <Trophy className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-gray-900">Rewards Bytes</span>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-white">
+      <div className="card p-8 w-full max-w-sm">
+        <div className="text-center mb-6">
+          <div className="w-12 h-12 bg-brand rounded-xl flex items-center justify-center text-white text-2xl font-bold mx-auto mb-3">R</div>
+          <h1 className="text-xl font-bold">RewardBytes</h1>
+          <p className="text-gray-500 text-sm mt-1">Create your organization</p>
         </div>
-        <Card>
-          <CardHeader>
-            <h1 className="text-xl font-semibold text-gray-900">Create your organization</h1>
-            <p className="text-sm text-gray-500 mt-1">Start rewarding your customers with game-based loyalty</p>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">Organization Name</label>
-                <Input name="orgName" placeholder="Acme Corp" value={form.orgName} onChange={handleChange} required />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">Email Address</label>
-                <Input name="email" type="email" placeholder="you@company.com" value={form.email} onChange={handleChange} required />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">Password</label>
-                <Input name="password" type="password" placeholder="Min. 8 characters" value={form.password} onChange={handleChange} required minLength={8} />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">Confirm Password</label>
-                <Input name="confirmPassword" type="password" placeholder="Re-enter password" value={form.confirmPassword} onChange={handleChange} required />
-              </div>
-              {error && <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-600">{error}</div>}
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</> : 'Create Organization'}
-              </Button>
-            </form>
-            <p className="mt-4 text-center text-sm text-gray-500">
-              Already have an account?{' '}
-              <Link to="/login" className="text-indigo-600 font-medium hover:underline">Sign in</Link>
-            </p>
-          </CardContent>
-        </Card>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div><label className="label">Organization Name</label><input className="input" required value={form.orgName} onChange={e => setForm(p => ({...p, orgName: e.target.value}))} /></div>
+          <div><label className="label">Email</label><input className="input" type="email" required value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} /></div>
+          <div><label className="label">Password</label><input className="input" type="password" required minLength={6} value={form.password} onChange={e => setForm(p => ({...p, password: e.target.value}))} /></div>
+          <button className="btn-primary w-full py-2.5" disabled={loading}>{loading ? 'Creating...' : 'Create Account'}</button>
+        </form>
+        <p className="text-center text-sm text-gray-500 mt-4">Have account? <Link to="/login" className="text-brand font-medium">Sign in</Link></p>
       </div>
     </div>
   );
