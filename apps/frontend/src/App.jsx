@@ -13,6 +13,15 @@ import CustomersPage from './pages/customers/CustomersPage';
 import CouponsPage from './pages/coupons/CouponsPage';
 import OrgSettingsPage from './pages/settings/OrgSettingsPage';
 import StaffPage from './pages/staff/StaffPage';
+// Customer portal
+import GamePortal from './pages/portal/GamePortal';
+import PortalLogin from './pages/portal/PortalLogin';
+import GamesList from './pages/portal/GamesList';
+import GameStart from './pages/portal/GameStart';
+import PlaySpinWheel from './pages/portal/games/PlaySpinWheel';
+import PlayScratchCard from './pages/portal/games/PlayScratchCard';
+import GameComplete from './pages/portal/GameComplete';
+import CustomerDashboard from './pages/portal/CustomerDashboard';
 
 const PrivateRoute = ({ children, adminOnly = false }) => {
   const { token, user } = useAuthStore();
@@ -26,6 +35,7 @@ export default function App() {
     <BrowserRouter>
       <Toaster position="top-right" />
       <Routes>
+        {/* Admin */}
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
@@ -38,6 +48,16 @@ export default function App() {
           <Route path="coupons" element={<CouponsPage />} />
           <Route path="settings" element={<PrivateRoute adminOnly><OrgSettingsPage /></PrivateRoute>} />
           <Route path="staff" element={<PrivateRoute adminOnly><StaffPage /></PrivateRoute>} />
+        </Route>
+        {/* Customer Portal */}
+        <Route path="/play/:orgSlug" element={<GamePortal />}>
+          <Route index element={<GamesList />} />
+          <Route path="login" element={<PortalLogin />} />
+          <Route path="dashboard" element={<CustomerDashboard />} />
+          <Route path="start/:orgGameId" element={<GameStart />} />
+          <Route path="play/spin/:sessionId" element={<PlaySpinWheel />} />
+          <Route path="play/scratch/:sessionId" element={<PlayScratchCard />} />
+          <Route path="complete/:sessionId" element={<GameComplete />} />
         </Route>
       </Routes>
     </BrowserRouter>
