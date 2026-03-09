@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Catch the Popcorn 🍿</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: #1a0a2e; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+  #gameCanvas { display: block; touch-action: none; }
+  #ui {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 10;
+  }
+  .ui-box {
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 12px;
+    padding: 6px 14px;
+    color: white;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .ui-box span { font-size: 18px; }
+  #overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #1a0a2e 0%, #2d1060 100%);
+    z-index: 20;
+    padding: 24px;
+    text-align: center;
+  }
+  #overlay h1 { font-size: 2.2rem; color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,0.5); margin-bottom: 8px; }
+  #overlay .subtitle { color: rgba(255,255,255,0.7); font-size: 0.95rem; margin-bottom: 24px; }
+  .rules-box {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    text-align: left;
+    width: 100%;
+    max-width: 320px;
+  }
+  .rules-box h3 { color: #ffd700; font-size: 0.85rem; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .rules-box li { color: rgba(255,255,255,0.85); font-size: 0.85rem; margin-bottom: 6px; list-style: none; padding-left: 0; display: flex; gap: 8px; }
+  .popcorn-types { display: flex; gap: 12px; margin-bottom: 24px; justify-content: center; flex-wrap: wrap; }
+  .type-badge {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 8px 12px;
+    text-align: center;
+    min-width: 80px;
+  }
+  .type-badge .icon { font-size: 1.8rem; display: block; }
+  .type-badge .name { color: white; font-size: 0.7rem; font-weight: 600; }
+  .type-badge .pts { font-size: 0.75rem; font-weight: 700; margin-top: 2px; }
+  #startBtn {
+    background: linear-gradient(135deg, #ffd700, #ff8c00);
+    border: none; border-radius: 50px;
+    padding: 16px 48px;
+    font-size: 1.2rem; font-weight: 800;
+    color: #1a0a2e; cursor: pointer;
+    box-shadow: 0 8px 24px rgba(255,215,0,0.4);
+    transition: transform 0.15s, box-shadow 0.15s;
+    letter-spacing: 1px;
+  }
+  #startBtn:active { transform: scale(0.96); box-shadow: 0 4px 12px rgba(255,215,0,0.3); }
+  #gameOver {
+    position: absolute; inset: 0;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: linear-gradient(135deg, rgba(26,10,46,0.97) 0%, rgba(45,16,96,0.97) 100%);
+    z-index: 20; padding: 24px; text-align: center;
+  }
+  #gameOver h2 { font-size: 2rem; color: #ffd700; margin-bottom: 4px; }
+  #gameOver .score-display {
+    font-size: 4rem; font-weight: 900; color: white;
+    text-shadow: 0 0 30px rgba(255,215,0,0.6);
+    margin: 12px 0;
+  }
+  #gameOver .reward-tier {
+    background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,140,0,0.2));
+    border: 2px solid rgba(255,215,0,0.4);
+    border-radius: 16px;
+    padding: 14px 24px;
+    margin: 12px 0 24px;
+    color: white;
+    font-size: 0.95rem;
+  }
+  #gameOver .reward-tier .tier-icon { font-size: 2.5rem; display: block; margin-bottom: 4px; }
+  #playAgainBtn {
+    background: linear-gradient(135deg, #ffd700, #ff8c00);
+    border: none; border-radius: 50px;
+    padding: 14px 40px;
+    font-size: 1rem; font-weight: 800;
+    color: #1a0a2e; cursor: pointer;
+    box-shadow: 0 6px 20px rgba(255,215,0,0.4);
+  }
+  #timerBar {
+    position: absolute; top: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, #ffd700, #ff4500);
+    transition: width 0.5s linear;
+    z-index: 15;
+    border-radius: 0 2px 2px 0;
+  }
+  .combo-text {
+    position: absolute;
+    font-size: 1.3rem; font-weight: 900;
+    color: #ffd700;
+    pointer-events: none;
+    animation: floatUp 0.8s forwards;
+    z-index: 30;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  }
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-60px) scale(1.3); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+<div id="timerBar"></div>
+
+<!-- HUD -->
+<div id="ui">
+  <div class="ui-box">⏱ <span id="timerDisplay">20</span>s</div>
+  <div class="ui-box">🍿 <span id="scoreDisplay">0</span></div>
+</div>
+
+<!-- Start Overlay -->
+<div id="overlay">
+  <h1>🍿 Catch the Popcorn!</h1>
+  <p class="subtitle">Drag the bucket to catch falling popcorn</p>
+
+  <div class="popcorn-types">
+    <div class="type-badge">
+      <span class="icon">🍿</span>
+      <div class="name">Normal</div>
+      <div class="pts" style="color:#4ade80">+1 pt</div>
+    </div>
+    <div class="type-badge">
+      <span class="icon">✨🍿</span>
+      <div class="name">Golden</div>
+      <div class="pts" style="color:#ffd700">+3 pts</div>
+    </div>
+    <div class="type-badge">
+      <span class="icon">💨</span>
+      <div class="name">Burnt</div>
+      <div class="pts" style="color:#f87171">-1 pt</div>
+    </div>
+  </div>
+
+  <div class="rules-box">
+    <h3>📝 Rules</h3>
+    <ul>
+      <li><span>👉</span> Drag the bucket left &amp; right to catch popcorn</li>
+      <li><span>🍿</span> Catch at least <strong style="color:#ffd700">10 popcorns</strong> to win a reward</li>
+      <li><span>⏱</span> You have <strong style="color:#ffd700">20 seconds</strong> to play</li>
+      <li><span>⚡</span> Speed increases after 10 seconds!</li>
+    </ul>
+  </div>
+
+  <button id="startBtn">▶ Start Game!</button>
+</div>
+
+<!-- Game Over Screen -->
+<div id="gameOver">
+  <div style="font-size:3rem">&#x1F389;</div>
+  <h2>Game Over!</h2>
+  <p style="color:rgba(255,255,255,0.6);font-size:0.9rem">You caught</p>
+  <div class="score-display"><span id="finalScore">0</span> 🍿</div>
+  <div class="reward-tier" id="rewardTier">
+    <span class="tier-icon" id="tierIcon">🎉</span>
+    <div id="tierText">Amazing!</div>
+  </div>
+  <button id="playAgainBtn">🔄 Play Again</button>
+</div>
+
+<script>
+// =====================
+// GAME CONFIG
+// =====================
+const GAME_DURATION = 20;
+const WIN_THRESHOLD = 10;
+const CANVAS_ID = 'gameCanvas';
+
+// =====================
+// CANVAS SETUP
+// =====================
+const canvas = document.getElementById(CANVAS_ID);
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', () => { resize(); if (!gameRunning) drawBg(); });
+
+// =====================
+// EMOJI DRAWING HELPERS
+// =====================
+function drawEmoji(emoji, x, y, size) {
+  ctx.save();
+  ctx.font = `${size}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, x, y);
+  ctx.restore();
+}
+
+function drawBucket(x, y, w, h) {
+  const bx = x - w/2;
+  // Bucket body
+  ctx.save();
+  const grad = ctx.createLinearGradient(bx, y, bx + w, y + h);
+  grad.addColorStop(0, '#ff4500');
+  grad.addColorStop(1, '#cc2200');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(bx + 6, y);
+  ctx.lineTo(bx + w - 6, y);
+  ctx.lineTo(bx + w - 2, y + h);
+  ctx.lineTo(bx + 2, y + h);
+  ctx.closePath();
+  ctx.fill();
+  // Stripes
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  const sw = (w - 12) / 5;
+  for (let i = 0; i < 3; i++) {
+    ctx.fillRect(bx + 8 + i * sw * 1.6, y + 2, sw * 0.6, h - 4);
+  }
+  // Rim
+  ctx.fillStyle = '#ffcc00';
+  ctx.fillRect(bx, y - 4, w, 6);
+  ctx.restore();
+  // Popcorn top
+  const pops = ['🍿','🍿','🍿'];
+  pops.forEach((p, i) => drawEmoji(p, bx + 12 + i * (w/3) - 2, y - 10, 14));
+}
+
+function drawBg() {
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  grad.addColorStop(0, '#1a0a2e');
+  grad.addColorStop(1, '#2d1060');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Stars
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  for (let i = 0; i < 40; i++) {
+    const sx = (i * 137.5) % canvas.width;
+    const sy = (i * 97.3) % (canvas.height * 0.7);
+    const ss = (i % 3 === 0) ? 2 : 1;
+    ctx.beginPath();
+    ctx.arc(sx, sy, ss, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Ground line
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([8, 8]);
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height - 80);
+  ctx.lineTo(canvas.width, canvas.height - 80);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// =====================
+// GAME STATE
+// =====================
+let gameRunning = false;
+let score = 0;
+let timeLeft = GAME_DURATION;
+let lastTime = 0;
+let timerAccum = 0;
+let spawnAccum = 0;
+let particles = [];
+let popcorns = [];
+let floatingTexts = [];
+
+// Bucket
+const bucket = {
+  x: 200, y: 0,
+  w: 72, h: 50,
+  speed: 0
+};
+
+function resetBucket() {
+  bucket.x = canvas.width / 2;
+  bucket.y = canvas.height - 70;
+}
+
+// Difficulty
+function getSpawnInterval() { return timeLeft > 10 ? 900 : 550; }
+function getBaseSpeed() { return canvas.height * (timeLeft > 10 ? 0.22 : 0.35); }
+
+// Popcorn types
+const TYPES = [
+  { emoji: '🍿', pts: 1,  color: '#4ade80', chance: 0.65, label: '+1' },
+  { emoji: '✨🍿', pts: 3, color: '#ffd700', chance: 0.20, label: '+3' },
+  { emoji: '💨',  pts: -1, color: '#f87171', chance: 0.15, label: '-1' }
+];
+
+function pickType() {
+  const r = Math.random();
+  if (r < TYPES[0].chance) return TYPES[0];
+  if (r < TYPES[0].chance + TYPES[1].chance) return TYPES[1];
+  return TYPES[2];
+}
+
+function spawnPopcorn() {
+  const type = pickType();
+  const margin = 30;
+  popcorns.push({
+    x: margin + Math.random() * (canvas.width - margin * 2),
+    y: -20,
+    size: 22 + Math.random() * 10,
+    speed: getBaseSpeed() * (0.7 + Math.random() * 0.6),
+    wobble: Math.random() * Math.PI * 2,
+    wobbleSpeed: 1.5 + Math.random() * 2,
+    type
+  });
+}
+
+function addFloatingText(x, y, text, color) {
+  floatingTexts.push({ x, y, text, color, life: 1.0 });
+}
+
+function spawnParticles(x, y, color) {
+  for (let i = 0; i < 8; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 120,
+      vy: -80 - Math.random() * 80,
+      life: 1.0,
+      size: 3 + Math.random() * 4,
+      color
+    });
+  }
+}
+
+// =====================
+// DRAG CONTROLS
+// =====================
+let dragActive = false;
+let lastDragX = 0;
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  dragActive = true;
+  lastDragX = e.touches[0].clientX;
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!dragActive || !gameRunning) return;
+  const dx = e.touches[0].clientX - lastDragX;
+  bucket.x = Math.max(bucket.w/2, Math.min(canvas.width - bucket.w/2, bucket.x + dx));
+  lastDragX = e.touches[0].clientX;
+}, { passive: false });
+canvas.addEventListener('touchend', () => { dragActive = false; });
+
+canvas.addEventListener('mousedown', e => { dragActive = true; lastDragX = e.clientX; });
+canvas.addEventListener('mousemove', e => {
+  if (!dragActive || !gameRunning) return;
+  const dx = e.clientX - lastDragX;
+  bucket.x = Math.max(bucket.w/2, Math.min(canvas.width - bucket.w/2, bucket.x + dx));
+  lastDragX = e.clientX;
+});
+canvas.addEventListener('mouseup', () => { dragActive = false; });
+
+// Arrow keys
+const keys = {};
+window.addEventListener('keydown', e => { keys[e.key] = true; });
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// =====================
+// GAME LOOP
+// =====================
+function gameLoop(ts) {
+  if (!gameRunning) return;
+  const dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+
+  // Keyboard
+  const kspeed = 320 * dt;
+  if (keys['ArrowLeft'] || keys['a']) bucket.x = Math.max(bucket.w/2, bucket.x - kspeed);
+  if (keys['ArrowRight'] || keys['d']) bucket.x = Math.min(canvas.width - bucket.w/2, bucket.x + kspeed);
+
+  // Timer
+  timerAccum += dt;
+  if (timerAccum >= 1) {
+    timerAccum -= 1;
+    timeLeft = Math.max(0, timeLeft - 1);
+    document.getElementById('timerDisplay').textContent = timeLeft;
+    // Timer bar
+    document.getElementById('timerBar').style.width = (timeLeft / GAME_DURATION * 100) + '%';
+    if (timeLeft === 0) { endGame(); return; }
+  }
+
+  // Spawn
+  spawnAccum += dt * 1000;
+  if (spawnAccum >= getSpawnInterval()) {
+    spawnAccum -= getSpawnInterval();
+    spawnPopcorn();
+    if (timeLeft <= 10) spawnPopcorn(); // Double spawn in hard mode
+  }
+
+  // Update popcorns
+  for (let i = popcorns.length - 1; i >= 0; i--) {
+    const p = popcorns[i];
+    p.y += p.speed * dt;
+    p.wobble += p.wobbleSpeed * dt;
+    p.x += Math.sin(p.wobble) * 0.6;
+
+    // Collision with bucket
+    const bTop = bucket.y - 4;
+    const bLeft = bucket.x - bucket.w / 2;
+    const bRight = bucket.x + bucket.w / 2;
+    if (p.y >= bTop && p.y <= bTop + p.speed * dt + 20 && p.x >= bLeft && p.x <= bRight) {
+      score = Math.max(0, score + p.type.pts);
+      document.getElementById('scoreDisplay').textContent = score;
+      addFloatingText(p.x, bTop - 10, p.type.label, p.type.color);
+      spawnParticles(p.x, bTop, p.type.color);
+      popcorns.splice(i, 1);
+      continue;
+    }
+
+    // Hit ground
+    if (p.y > canvas.height + 20) {
+      popcorns.splice(i, 1);
+    }
+  }
+
+  // Update particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 200 * dt; // gravity
+    p.life -= dt * 2;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // Update floating texts
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const t = floatingTexts[i];
+    t.y -= 40 * dt;
+    t.life -= dt * 1.5;
+    if (t.life <= 0) floatingTexts.splice(i, 1);
+  }
+
+  // ---- DRAW ----
+  drawBg();
+
+  // Falling popcorns
+  popcorns.forEach(p => {
+    const wobbleX = Math.sin(p.wobble * 0.5) * 3;
+    const scale = 1 + Math.sin(p.wobble) * 0.05;
+    ctx.save();
+    ctx.translate(p.x + wobbleX, p.y);
+    ctx.scale(scale, scale);
+    ctx.font = `${p.size}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.type.emoji, 0, 0);
+    ctx.restore();
+  });
+
+  // Particles
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // Floating texts
+  floatingTexts.forEach(t => {
+    ctx.save();
+    ctx.globalAlpha = t.life;
+    ctx.fillStyle = t.color;
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(t.text, t.x, t.y);
+    ctx.restore();
+  });
+
+  // Bucket
+  drawBucket(bucket.x, bucket.y, bucket.w, bucket.h);
+
+  // Difficulty flash
+  if (timeLeft === 10) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,69,0,0.15)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#ff4500';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚡ SPEED UP!', canvas.width/2, canvas.height/2);
+    ctx.restore();
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+// =====================
+// REWARD TIERS
+// =====================
+function getRewardTier(s) {
+  if (s <= 5)  return { icon: '😅', text: 'Keep trying! Score more next time.' };
+  if (s <= 10) return { icon: '🎉', text: '10% Discount! Show this to the cashier.' };
+  if (s <= 15) return { icon: '🍿', text: 'Free Topping on your next order!' };
+  return { icon: '🏆', text: 'FREE Small Popcorn! You\'re a popcorn legend!' };
+}
+
+// =====================
+// GAME CONTROL FUNCTIONS
+// =====================
+function startGame() {
+  score = 0;
+  timeLeft = GAME_DURATION;
+  timerAccum = 0;
+  spawnAccum = 0;
+  popcorns = [];
+  particles = [];
+  floatingTexts = [];
+  gameRunning = true;
+  lastTime = performance.now();
+  resetBucket();
+  document.getElementById('scoreDisplay').textContent = '0';
+  document.getElementById('timerDisplay').textContent = GAME_DURATION;
+  document.getElementById('timerBar').style.width = '100%';
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('gameOver').style.display = 'none';
+  requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+  gameRunning = false;
+  document.getElementById('finalScore').textContent = score;
+  const tier = getRewardTier(score);
+  document.getElementById('tierIcon').textContent = tier.icon;
+  document.getElementById('tierText').textContent = tier.text;
+  document.getElementById('gameOver').style.display = 'flex';
+  finishGame(score);
+}
+
+function finishGame(finalScore) {
+  // Report score to parent app
+  try {
+    window.parent.postMessage({ type: 'GAME_COMPLETE', score: finalScore }, '*');
+  } catch(e) {}
+  // Also call parent function if embedded
+  if (window.parent && window.parent.onGameComplete) {
+    window.parent.onGameComplete({ score: finalScore });
+  }
+  console.log('[RewardBytes] Game complete. Score:', finalScore);
+}
+
+function validateGame() {
+  return { valid: true, score, won: score >= WIN_THRESHOLD };
+}
+
+// =====================
+// UI EVENTS
+// =====================
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('playAgainBtn').addEventListener('click', () => {
+  document.getElementById('gameOver').style.display = 'none';
+  document.getElementById('overlay').style.display = 'flex';
+});
+
+// Initial background
+drawBg();
+</script>
+</body>
+</html>

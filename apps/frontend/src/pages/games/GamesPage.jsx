@@ -4,11 +4,18 @@ import api from '../../lib/api';
 import Modal from '../../components/Modal';
 import PageHeader from '../../components/PageHeader';
 
+const GAME_META = {
+  spin_wheel:    { icon: '🎡', preview: null },
+  scratch_card:  { icon: '🃏', preview: null },
+  catch_popcorn: { icon: '🍿', preview: '/games/catch-popcorn/index.html' },
+};
+
 export default function GamesPage() {
   const [games, setGames] = useState([]);
   const [offers, setOffers] = useState([]);
   const [configGame, setConfigGame] = useState(null);
   const [infoGame, setInfoGame] = useState(null);
+  const [previewGame, setPreviewGame] = useState(null);
   const [configForm, setConfigForm] = useState({ assignedOffers: [], timerMinutes: 0 });
   const [saving, setSaving] = useState(false);
 
@@ -32,7 +39,8 @@ export default function GamesPage() {
     }
     try {
       await api.post(`/games/${game._id}/configure`, { isEnabled: enabled });
-      setGames(prev => prev.map(g => g._id === game._id ? { ...g, orgConfig: { ...g.orgConfig, isEnabled: enabled } } : g));
+      setGames(prev => prev.map(g => g._id === game._id
+        ? { ...g, orgConfig: { ...g.orgConfig, isEnabled: enabled } } : g));
       toast.success(enabled ? 'Game enabled' : 'Game disabled');
     } catch (err) { toast.error(err.response?.data?.error || 'Error'); }
   };
@@ -56,15 +64,24 @@ export default function GamesPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {games.map(game => {
+          const meta = GAME_META[game.key] || { icon: '❓', preview: null };
           const enabled = game.orgConfig?.isEnabled;
           const offersCount = game.orgConfig?.assignedOffers?.length || 0;
           return (
             <div key={game._id} className="card p-5">
               <div className="flex items-start justify-between mb-3">
                 <div className="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center text-2xl">
-                  {game.key === 'spin_wheel' ? '🎡' : game.key === 'scratch_card' ? '🃏' : '❓'}
+                  {meta.icon}
                 </div>
                 <div className="flex items-center gap-2">
+                  {meta.preview && (
+                    <button
+                      onClick={() => setPreviewGame(game)}
+                      className="text-xs text-purple-500 hover:text-purple-700 px-2 py-1 rounded border border-purple-200 hover:bg-purple-50"
+                    >
+                      ▶ Preview
+                    </button>
+                  )}
                   <button onClick={() => setInfoGame(game)} className="text-xs text-gray-400 hover:text-brand px-2 py-1 rounded border border-gray-200">Info</button>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" className="sr-only peer" checked={!!enabled}
@@ -76,7 +93,7 @@ export default function GamesPage() {
               <h3 className="font-semibold text-gray-900">{game.name}</h3>
               <p className="text-xs text-gray-500 mt-1 mb-3">{game.shortDescription}</p>
               <div className="flex items-center justify-between">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${enabled ? 'badge-active' : 'bg-gray-100 text-gray-500'}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ enabled ? 'badge-active' : 'bg-gray-100 text-gray-500' }`}>
                   {enabled ? 'Active' : 'Disabled'}
                 </span>
                 <span className="text-xs text-gray-400">{offersCount} offer{offersCount !== 1 ? 's' : ''}</span>
@@ -113,7 +130,7 @@ export default function GamesPage() {
           <div>
             <label className="label">Game Timer (minutes) <span className="text-gray-400">— 0 = no timer</span></label>
             <input className="input" type="number" min="0" value={configForm.timerMinutes}
-              onChange={e => setConfigForm(p => ({...p, timerMinutes: e.target.value}))} />
+              onChange={e => setConfigForm(p => ({ ...p, timerMinutes: e.target.value }))} />
           </div>
           <button className="btn-primary w-full" onClick={handleSaveConfig} disabled={saving}>
             {saving ? 'Saving...' : 'Save Configuration'}
@@ -136,6 +153,20 @@ export default function GamesPage() {
                 {infoGame.rules.map((r, i) => <li key={i} className="text-sm text-gray-600 flex gap-2"><span className="text-brand font-bold">{i+1}.</span>{r}</li>)}
               </ul>
             </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Preview Modal */}
+      <Modal open={!!previewGame} onClose={() => setPreviewGame(null)} title={`Preview — ${previewGame?.name}`} size="xl">
+        <div className="rounded-xl overflow-hidden" style={{ height: 520 }}>
+          {previewGame && GAME_META[previewGame.key]?.preview && (
+            <iframe
+              src={GAME_META[previewGame.key].preview}
+              style={{ width: '100%', height: '100%', border: 'none' }}
+              title="Game Preview"
+              allow="autoplay"
+            />
           )}
         </div>
       </Modal>

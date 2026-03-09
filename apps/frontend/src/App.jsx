@@ -20,6 +20,7 @@ import GamesList from './pages/portal/GamesList';
 import GameStart from './pages/portal/GameStart';
 import PlaySpinWheel from './pages/portal/games/PlaySpinWheel';
 import PlayScratchCard from './pages/portal/games/PlayScratchCard';
+import PlayCatchPopcorn from './pages/portal/games/PlayCatchPopcorn';
 import GameComplete from './pages/portal/GameComplete';
 import CustomerDashboard from './pages/portal/CustomerDashboard';
 
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="start/:orgGameId" element={<GameStart />} />
           <Route path="play/spin/:sessionId" element={<PlaySpinWheel />} />
           <Route path="play/scratch/:sessionId" element={<PlayScratchCard />} />
+          <Route path="play/popcorn/:sessionId" element={<PlayCatchPopcorn />} />
           <Route path="complete/:sessionId" element={<GameComplete />} />
         </Route>
       </Routes>
