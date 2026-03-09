@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import Modal from '../../components/Modal';
@@ -16,17 +16,39 @@ export default function CouponsPage() {
   const [additionalDays, setAdditionalDays] = useState(7);
   const [customerDetails, setCustomerDetails] = useState(null);
   const [activeTab, setActiveTab] = useState('games');
+  const [loading, setLoading] = useState(false);
 
-  const load = () => api.get('/coupons', { params: { page, limit: perPage, ...filters } }).then(r => setData(r.data));
-  useEffect(load, [page, perPage]);
+  const load = useCallback(async (overrides = {}) => {
+    setLoading(true);
+    try {
+      const params = { page, limit: perPage, ...filters, ...overrides };
+      const r = await api.get('/coupons', { params });
+      setData(r.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, perPage, filters]);
+
+  useEffect(() => { load(); }, [page, perPage]);
+
+  const handleApplyFilters = () => { setPage(1); load({ page: 1 }); };
+  const handleClearFilters = () => {
+    const cleared = { from: '', to: '', code: '', name: '', mobile: '', status: '' };
+    setFilters(cleared);
+    setPage(1);
+    load({ ...cleared, page: 1 });
+  };
 
   const openRedeem = async (coupon) => {
     setRedeemModal(coupon);
     setActiveTab('games');
-    // Fetch customer full details
-    const r = await api.get(`/game-history`, { params: { search: coupon.customerId?.phone, limit: 100 } });
-    const customerRow = r.data.history?.find(h => h.customer?.phone === coupon.customerId?.phone);
-    setCustomerDetails(customerRow || null);
+    try {
+      const r = await api.get('/game-history', { params: { search: coupon.customerId?.phone, limit: 100 } });
+      const customerRow = r.data.history?.find(h => h.customer?.phone === coupon.customerId?.phone);
+      setCustomerDetails(customerRow || null);
+    } catch { setCustomerDetails(null); }
   };
 
   const handleRedeem = async () => {
@@ -70,12 +92,12 @@ export default function CouponsPage() {
       {/* Filters */}
       <div className="card p-4 mb-4">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <input className="input" type="date" placeholder="From" value={filters.from} onChange={e => setFilters(p=>({...p,from:e.target.value}))} />
-          <input className="input" type="date" placeholder="To" value={filters.to} onChange={e => setFilters(p=>({...p,to:e.target.value}))} />
-          <input className="input" placeholder="Coupon code" value={filters.code} onChange={e => setFilters(p=>({...p,code:e.target.value}))} />
-          <input className="input" placeholder="Customer name" value={filters.name} onChange={e => setFilters(p=>({...p,name:e.target.value}))} />
-          <input className="input" placeholder="Mobile number" value={filters.mobile} onChange={e => setFilters(p=>({...p,mobile:e.target.value}))} />
-          <select className="input" value={filters.status} onChange={e => setFilters(p=>({...p,status:e.target.value}))}>
+          <input className="input" type="date" placeholder="From" value={filters.from} onChange={e => setFilters(p => ({ ...p, from: e.target.value }))} />
+          <input className="input" type="date" placeholder="To" value={filters.to} onChange={e => setFilters(p => ({ ...p, to: e.target.value }))} />
+          <input className="input" placeholder="Coupon code" value={filters.code} onChange={e => setFilters(p => ({ ...p, code: e.target.value }))} />
+          <input className="input" placeholder="Customer name" value={filters.name} onChange={e => setFilters(p => ({ ...p, name: e.target.value }))} />
+          <input className="input" placeholder="Mobile number" value={filters.mobile} onChange={e => setFilters(p => ({ ...p, mobile: e.target.value }))} />
+          <select className="input" value={filters.status} onChange={e => setFilters(p => ({ ...p, status: e.target.value }))}>
             <option value="">All Status</option>
             <option value="active">Active</option>
             <option value="redeemed">Redeemed</option>
@@ -83,12 +105,13 @@ export default function CouponsPage() {
           </select>
         </div>
         <div className="flex gap-2 mt-3">
-          <button className="btn-primary" onClick={() => { setPage(1); load(); }}>Apply Filters</button>
-          <button className="btn-secondary" onClick={() => { setFilters({ from:'',to:'',code:'',name:'',mobile:'',status:'' }); setPage(1); }}>Clear</button>
+          <button className="btn-primary" onClick={handleApplyFilters}>Apply Filters</button>
+          <button className="btn-secondary" onClick={handleClearFilters}>Clear</button>
         </div>
       </div>
 
       <div className="card overflow-hidden">
+        {loading && <div className="text-center py-3 text-sm text-gray-400">Loading...</div>}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
@@ -101,7 +124,7 @@ export default function CouponsPage() {
             <tbody className="divide-y divide-gray-50">
               {data.coupons.map((c, i) => (
                 <tr key={c._id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-400">{(page-1)*perPage+i+1}</td>
+                  <td className="px-4 py-3 text-gray-400">{(page - 1) * perPage + i + 1}</td>
                   <td className="px-4 py-3 font-mono font-bold text-brand">{c.code}</td>
                   <td className="px-4 py-3">
                     <p className="font-medium">{c.customerId?.name}</p>
@@ -111,11 +134,9 @@ export default function CouponsPage() {
                   <td className="px-4 py-3 text-xs text-gray-500">{c.startDate ? format(new Date(c.startDate), 'dd MMM yy') : '-'}</td>
                   <td className="px-4 py-3 text-xs text-gray-500">{c.expiresAt ? format(new Date(c.expiresAt), 'dd MMM yy') : '-'}</td>
                   <td className="px-4 py-3 text-xs">{daysRemaining(c.expiresAt)}</td>
+                  <td className="px-4 py-3"><span className={`badge-${c.status}`}>{c.status}</span></td>
                   <td className="px-4 py-3">
-                    <span className={`badge-${c.status}`}>{c.status}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-wrap">
                       {c.status === 'active' && <button onClick={() => openRedeem(c)} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded hover:bg-green-100">Redeem</button>}
                       <button onClick={() => { setEditModal(c); setAdditionalDays(7); }} className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded hover:bg-blue-100">Extend</button>
                       <button onClick={() => handleNotify(c)} className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded hover:bg-purple-100">Notify</button>
@@ -124,14 +145,20 @@ export default function CouponsPage() {
                   </td>
                 </tr>
               ))}
-              {data.coupons.length === 0 && (
+              {!loading && data.coupons.length === 0 && (
                 <tr><td colSpan={9} className="text-center py-10 text-gray-400">No coupons found</td></tr>
               )}
             </tbody>
           </table>
         </div>
         <div className="px-4 pb-4">
-          <Pagination page={page} totalPages={data.totalPages} onPageChange={setPage} perPage={perPage} onPerPageChange={p => { setPerPage(p); setPage(1); }} />
+          <Pagination
+            page={page}
+            totalPages={data.totalPages}
+            onPageChange={setPage}
+            perPage={perPage}
+            onPerPageChange={p => { setPerPage(p); setPage(1); }}
+          />
         </div>
       </div>
 
@@ -155,24 +182,30 @@ export default function CouponsPage() {
             </div>
             {activeTab === 'games' && (
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {customerDetails?.sessions?.map(s => (
-                  <div key={s._id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
-                    <span className="font-medium">{s.gameId?.name}</span>
-                    <span className="text-gray-400">{s.startedAt ? format(new Date(s.startedAt), 'dd MMM, HH:mm') : ''}</span>
-                    <span className={`badge-${s.status}`}>{s.status}</span>
-                  </div>
-                )) || <p className="text-xs text-gray-400">No games found</p>}
+                {customerDetails?.sessions?.length > 0
+                  ? customerDetails.sessions.map(s => (
+                    <div key={s._id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                      <span className="font-medium">{s.gameId?.name}</span>
+                      <span className="text-gray-400">{s.startedAt ? format(new Date(s.startedAt), 'dd MMM, HH:mm') : ''}</span>
+                      <span className={`badge-${s.status}`}>{s.status}</span>
+                    </div>
+                  ))
+                  : <p className="text-xs text-gray-400 text-center py-4">No games found</p>
+                }
               </div>
             )}
             {activeTab === 'offers' && (
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {customerDetails?.sessions?.filter(s => s.offerId).map(s => (
-                  <div key={s._id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
-                    <span className="font-medium">{s.offerId?.name}</span>
-                    {s.couponId && <span className="font-mono text-brand">{s.couponId.code}</span>}
-                    {s.couponId && <span className={`badge-${s.couponId.status}`}>{s.couponId.status}</span>}
-                  </div>
-                )) || <p className="text-xs text-gray-400">No offers received</p>}
+                {customerDetails?.sessions?.filter(s => s.offerId).length > 0
+                  ? customerDetails.sessions.filter(s => s.offerId).map(s => (
+                    <div key={s._id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                      <span className="font-medium">{s.offerId?.name}</span>
+                      {s.couponId && <span className="font-mono text-brand">{s.couponId.code}</span>}
+                      {s.couponId && <span className={`badge-${s.couponId.status}`}>{s.couponId.status}</span>}
+                    </div>
+                  ))
+                  : <p className="text-xs text-gray-400 text-center py-4">No offers received</p>
+                }
               </div>
             )}
             <button className="btn-primary w-full mt-4" onClick={handleRedeem}>✅ Confirm Redeem</button>
@@ -184,7 +217,8 @@ export default function CouponsPage() {
       <Modal open={!!editModal} onClose={() => setEditModal(null)} title="Extend Validity" size="sm">
         <div className="space-y-4">
           <p className="text-sm text-gray-600">Coupon: <strong className="font-mono text-brand">{editModal?.code}</strong></p>
-          <div><label className="label">Add Days</label>
+          <div>
+            <label className="label">Add Days</label>
             <input className="input" type="number" min="1" value={additionalDays} onChange={e => setAdditionalDays(e.target.value)} />
           </div>
           <button className="btn-primary w-full" onClick={handleExtend}>Extend Validity</button>

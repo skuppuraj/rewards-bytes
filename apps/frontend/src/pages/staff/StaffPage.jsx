@@ -12,42 +12,68 @@ export default function StaffPage() {
   const [editStaff, setEditStaff] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const load = () => api.get('/staff').then(r => setStaff(r.data));
-  useEffect(load, []);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/staff');
+      setStaff(r.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
 
   const openCreate = () => { setForm(emptyForm); setEditStaff(null); setShowModal(true); };
-  const openEdit = (s) => { setEditStaff(s); setForm({ name: s.name, email: s.email, password: '', permissions: s.permissions }); setShowModal(true); };
+  const openEdit = (s) => {
+    setEditStaff(s);
+    setForm({ name: s.name, email: s.email, password: '', permissions: s.permissions || { canRedeemCoupons: true, canViewCustomers: true } });
+    setShowModal(true);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
       if (editStaff) {
-        await api.patch(`/staff/${editStaff._id}`, form);
+        const payload = { ...form };
+        if (!payload.password) delete payload.password;
+        await api.patch(`/staff/${editStaff._id}`, payload);
         toast.success('Staff updated');
       } else {
         await api.post('/staff', form);
         toast.success('Staff account created');
       }
-      setShowModal(false); load();
-    } catch (err) { toast.error(err.response?.data?.error || 'Error'); }
-    finally { setSaving(false); }
+      setShowModal(false);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error');
+    } finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this staff account?')) return;
-    try { await api.delete(`/staff/${id}`); toast.success('Staff deleted'); load(); }
-    catch (err) { toast.error(err.response?.data?.error || 'Error'); }
+    try {
+      await api.delete(`/staff/${id}`);
+      toast.success('Staff deleted');
+      load();
+    } catch (err) { toast.error(err.response?.data?.error || 'Error'); }
   };
 
   return (
     <div className="p-6">
-      <PageHeader title="Staff" subtitle="Manage staff accounts for coupon redemption" action={
-        <button className="btn-primary" onClick={openCreate}>+ Add Staff</button>
-      } />
+      <PageHeader
+        title="Staff"
+        subtitle="Manage staff accounts for coupon redemption"
+        action={<button className="btn-primary" onClick={openCreate}>+ Add Staff</button>}
+      />
 
       <div className="card overflow-hidden">
+        {loading && <div className="text-center py-4 text-sm text-gray-400">Loading...</div>}
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
@@ -79,7 +105,7 @@ export default function StaffPage() {
                 </td>
               </tr>
             ))}
-            {staff.length === 0 && (
+            {!loading && staff.length === 0 && (
               <tr><td colSpan={6} className="text-center py-10 text-gray-400">No staff accounts yet</td></tr>
             )}
           </tbody>
@@ -88,19 +114,30 @@ export default function StaffPage() {
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title={editStaff ? 'Edit Staff' : 'Add Staff'} size="sm">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div><label className="label">Name</label><input className="input" required value={form.name} onChange={e => setForm(p=>({...p,name:e.target.value}))} /></div>
-          <div><label className="label">Email</label><input className="input" type="email" required value={form.email} onChange={e => setForm(p=>({...p,email:e.target.value}))} /></div>
-          <div><label className="label">{editStaff ? 'New Password (leave blank to keep)' : 'Password'}</label>
-            <input className="input" type="password" required={!editStaff} value={form.password} onChange={e => setForm(p=>({...p,password:e.target.value}))} />
+          <div><label className="label">Name</label><input className="input" required value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
+          <div><label className="label">Email</label><input className="input" type="email" required value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div>
+          <div>
+            <label className="label">{editStaff ? 'New Password (leave blank to keep)' : 'Password'}</label>
+            <input className="input" type="password" required={!editStaff} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} />
           </div>
           <div>
             <label className="label">Permissions</label>
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.permissions.canRedeemCoupons} onChange={e => setForm(p=>({...p,permissions:{...p.permissions,canRedeemCoupons:e.target.checked}}))} />Can redeem coupons</label>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.permissions.canViewCustomers} onChange={e => setForm(p=>({...p,permissions:{...p.permissions,canViewCustomers:e.target.checked}}))} />Can view customers</label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={form.permissions.canRedeemCoupons}
+                  onChange={e => setForm(p => ({ ...p, permissions: { ...p.permissions, canRedeemCoupons: e.target.checked } }))} />
+                Can redeem coupons
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={form.permissions.canViewCustomers}
+                  onChange={e => setForm(p => ({ ...p, permissions: { ...p.permissions, canViewCustomers: e.target.checked } }))} />
+                Can view customers
+              </label>
             </div>
           </div>
-          <button className="btn-primary w-full" disabled={saving}>{saving ? 'Saving...' : editStaff ? 'Update Staff' : 'Create Staff'}</button>
+          <button className="btn-primary w-full" disabled={saving}>
+            {saving ? 'Saving...' : editStaff ? 'Update Staff' : 'Create Staff'}
+          </button>
         </form>
       </Modal>
     </div>

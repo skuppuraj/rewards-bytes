@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import api from '../../lib/api';
 import PageHeader from '../../components/PageHeader';
 import Pagination from '../../components/Pagination';
@@ -12,12 +12,29 @@ export default function GameHistoryPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [expanded, setExpanded] = useState({});
+  const [loading, setLoading] = useState(false);
 
-  const load = () => {
-    const params = { page, limit: perPage, search, from, to };
-    api.get('/game-history', { params }).then(r => setData(r.data));
+  const load = useCallback(async (overrides = {}) => {
+    setLoading(true);
+    try {
+      const params = { page, limit: perPage, search, from, to, ...overrides };
+      const r = await api.get('/game-history', { params });
+      setData(r.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, perPage, search, from, to]);
+
+  useEffect(() => { load(); }, [page, perPage]);
+
+  const handleSearch = () => { setPage(1); load({ page: 1 }); };
+  const handleClear = () => {
+    setSearch(''); setFrom(''); setTo('');
+    setPage(1);
+    load({ search: '', from: '', to: '', page: 1 });
   };
-  useEffect(load, [page, perPage]);
 
   const toggle = (id) => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
@@ -26,14 +43,16 @@ export default function GameHistoryPage() {
       <PageHeader title="Game History" subtitle="All customer play sessions" />
 
       <div className="card p-4 mb-4 flex flex-wrap gap-3">
-        <input className="input flex-1 min-w-40" placeholder="Search by name or phone" value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="input flex-1 min-w-40" placeholder="Search by name or phone" value={search}
+          onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} />
         <input className="input w-36" type="date" value={from} onChange={e => setFrom(e.target.value)} />
         <input className="input w-36" type="date" value={to} onChange={e => setTo(e.target.value)} />
-        <button className="btn-primary" onClick={() => { setPage(1); load(); }}>Search</button>
-        <button className="btn-secondary" onClick={() => { setSearch(''); setFrom(''); setTo(''); setPage(1); }}>Clear</button>
+        <button className="btn-primary" onClick={handleSearch}>Search</button>
+        <button className="btn-secondary" onClick={handleClear}>Clear</button>
       </div>
 
       <div className="card overflow-hidden">
+        {loading && <div className="text-center py-3 text-sm text-gray-400">Loading...</div>}
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
@@ -86,13 +105,19 @@ export default function GameHistoryPage() {
                 )}
               </React.Fragment>
             ))}
-            {data.history.length === 0 && (
+            {!loading && data.history.length === 0 && (
               <tr><td colSpan={6} className="text-center py-10 text-gray-400">No game history yet</td></tr>
             )}
           </tbody>
         </table>
         <div className="px-4 pb-4">
-          <Pagination page={page} totalPages={data.totalPages} onPageChange={setPage} perPage={perPage} onPerPageChange={p => { setPerPage(p); setPage(1); }} />
+          <Pagination
+            page={page}
+            totalPages={data.totalPages}
+            onPageChange={setPage}
+            perPage={perPage}
+            onPerPageChange={p => { setPerPage(p); setPage(1); }}
+          />
         </div>
       </div>
     </div>
