@@ -1,90 +1,51 @@
 const router = require('express').Router();
-const auth = require('../middleware/tenant.middleware');
+const auth = require('../middleware/auth.middleware');
 const Game = require('../models/Game');
-const Player = require('../models/Player');
+const OrgGame = require('../models/OrgGame');
+const { upload, processImage } = require('../middleware/upload.middleware');
 
+// Get all system games + org config
 router.get('/', auth, async (req, res) => {
   try {
-    const games = await Game.find({ organizationId: req.orgId });
-    res.json(games);
+    const games = await Game.find();
+    const orgGames = await OrgGame.find({ organizationId: req.orgId }).populate('assignedOffers', 'name discountType discountValue');
+    const result = games.map(g => {
+      const orgGame = orgGames.find(og => og.gameId.toString() === g._id.toString());
+      return { ...g.toObject(), orgConfig: orgGame || null };
+    });
+    res.json(result);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.get('/:id', async (req, res) => {
+// Toggle enable/disable + configure game
+router.post('/:gameId/configure', auth, async (req, res) => {
   try {
-    const game = await Game.findById(req.params.id);
-    if (!game) return res.status(404).json({ error: 'Game not found' });
-    res.json(game);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.post('/', auth, async (req, res) => {
-  try {
-    const { name, type, config, pointsPerPlay } = req.body;
-    const game = await Game.create({ organizationId: req.orgId, name, type, config, pointsPerPlay });
-    res.status(201).json(game);
-  } catch (err) { res.status(400).json({ error: err.message }); }
-});
-
-router.patch('/:id', auth, async (req, res) => {
-  try {
-    const game = await Game.findOneAndUpdate(
-      { _id: req.params.id, organizationId: req.orgId },
-      req.body, { new: true }
-    );
-    if (!game) return res.status(404).json({ error: 'Game not found' });
-    res.json(game);
-  } catch (err) { res.status(400).json({ error: err.message }); }
-});
-
-router.delete('/:id', auth, async (req, res) => {
-  try {
-    await Game.findOneAndDelete({ _id: req.params.id, organizationId: req.orgId });
-    res.json({ message: 'Game deleted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.post('/:id/play', async (req, res) => {
-  try {
-    const { playerId } = req.body;
-    const game = await Game.findOne({ _id: req.params.id, isActive: true });
-    if (!game) return res.status(404).json({ error: 'Game not found or inactive' });
-    const player = await Player.findById(playerId);
-    if (!player) return res.status(404).json({ error: 'Player not found' });
-
-    let pointsEarned = game.pointsPerPlay;
-    let result = {};
-
-    switch (game.type) {
-      case 'spin_wheel': {
-        const segments = game.config?.segments || [];
-        const randomIndex = Math.floor(Math.random() * segments.length);
-        const segment = segments[randomIndex];
-        pointsEarned = segment?.points || game.pointsPerPlay;
-        result = { segment: segment?.label || 'Unknown', pointsEarned };
-        break;
-      }
-      case 'scratch_card': {
-        const prizes = game.config?.prizes || [];
-        const prize = prizes[Math.floor(Math.random() * prizes.length)];
-        pointsEarned = prize?.points || game.pointsPerPlay;
-        result = { prize: prize?.label || 'Try Again', pointsEarned };
-        break;
-      }
-      default:
-        result = { pointsEarned };
+    const { isEnabled, assignedOffers, timerMinutes } = req.body;
+    let orgGame = await OrgGame.findOne({ organizationId: req.orgId, gameId: req.params.gameId });
+    if (!orgGame) {
+      orgGame = await OrgGame.create({ organizationId: req.orgId, gameId: req.params.gameId });
     }
+    if (isEnabled !== undefined) orgGame.isEnabled = isEnabled;
+    if (assignedOffers !== undefined) orgGame.assignedOffers = assignedOffers;
+    if (timerMinutes !== undefined) orgGame.timerMinutes = parseInt(timerMinutes);
+    orgGame.updatedAt = new Date();
+    await orgGame.save();
+    res.json(orgGame);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
 
-    const updatedPlayer = await Player.findByIdAndUpdate(
-      playerId,
-      {
-        $inc: { totalPoints: pointsEarned },
-        $set: { level: Math.floor((player.totalPoints + pointsEarned) / 100) + 1 }
-      },
-      { new: true }
-    );
-
-    res.json({ result, player: updatedPlayer });
+// Seed system games (run once)
+router.post('/seed', async (req, res) => {
+  try {
+    const games = [
+      { key: 'spin_wheel', name: 'Spin Wheel', shortDescription: 'Spin the wheel and win amazing rewards!', fullDescription: 'A classic spin-the-wheel game where customers spin a colorful wheel to land on prize segments. Each spin gives them a chance to win offers and coupons from your brand.', rules: ['Click SPIN to start', 'Wait for the wheel to stop', 'Your reward will be revealed automatically', 'One spin per day allowed'], imageUrl: null, videoDemoUrl: null },
+      { key: 'scratch_card', name: 'Scratch Card', shortDescription: 'Scratch and reveal your hidden prize!', fullDescription: 'Customers scratch a virtual card to reveal their hidden prize. The suspense and excitement drives high engagement and repeat visits.', rules: ['Tap the card to start scratching', 'Scratch the entire surface to reveal prize', 'Prize is automatically credited to your account'], imageUrl: null, videoDemoUrl: null },
+      { key: 'quiz', name: 'Quiz Game', shortDescription: 'Answer questions and earn reward points!', fullDescription: 'Customers answer multiple choice questions about your brand or general knowledge to earn reward points redeemable for offers.', rules: ['Read each question carefully', 'Select the correct answer', 'Each correct answer earns points', 'Final score determines your reward'], imageUrl: null, videoDemoUrl: null }
+    ];
+    for (const g of games) {
+      await Game.findOneAndUpdate({ key: g.key }, g, { upsert: true, new: true });
+    }
+    res.json({ message: 'Games seeded' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

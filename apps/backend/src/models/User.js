@@ -6,6 +6,11 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true },
   password: { type: String, required: true },
   role: { type: String, enum: ['owner', 'admin', 'staff'], default: 'owner' },
+  permissions: {
+    canRedeemCoupons: { type: Boolean, default: false },
+    canViewCustomers: { type: Boolean, default: false }
+  },
+  isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 });
 
