@@ -10,12 +10,31 @@ const GAME_META = {
   catch_popcorn: { icon: '🍿', preview: '/games/catch-popcorn/index.html' },
 };
 
-// Per-game extra config fields
+// Derive durationMins + durationSecs from saved durationSeconds
+function splitDuration(gameConfig = {}) {
+  if (gameConfig.durationMins !== undefined || gameConfig.durationSecs !== undefined) {
+    // Already split — use as-is
+    return {
+      durationMins: gameConfig.durationMins ?? 0,
+      durationSecs: gameConfig.durationSecs ?? 20,
+    };
+  }
+  // Derive from durationSeconds
+  const total = gameConfig.durationSeconds ?? 20;
+  return {
+    durationMins: Math.floor(total / 60),
+    durationSecs: total % 60,
+  };
+}
+
 function GameExtraConfig({ gameKey, form, setForm }) {
   if (gameKey === 'catch_popcorn') {
+    const mins = form.gameConfig?.durationMins ?? 0;
+    const secs = form.gameConfig?.durationSecs ?? 20;
     return (
       <div className="space-y-4 pt-2 border-t border-gray-100">
         <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">🍿 Catch Popcorn Settings</p>
+
         <div>
           <label className="label">
             Popcorn to Catch to Win
@@ -25,9 +44,13 @@ function GameExtraConfig({ gameKey, form, setForm }) {
             className="input"
             type="number" min="1" max="100"
             value={form.gameConfig?.winThreshold ?? 10}
-            onChange={e => setForm(p => ({ ...p, gameConfig: { ...p.gameConfig, winThreshold: parseInt(e.target.value) || 10 } }))}
+            onChange={e => {
+              const val = parseInt(e.target.value) || 1;
+              setForm(p => ({ ...p, gameConfig: { ...p.gameConfig, winThreshold: val } }));
+            }}
           />
         </div>
+
         <div>
           <label className="label">Game Duration</label>
           <div className="flex gap-2">
@@ -36,8 +59,15 @@ function GameExtraConfig({ gameKey, form, setForm }) {
               <input
                 className="input"
                 type="number" min="0" max="10"
-                value={form.gameConfig?.durationMins ?? 0}
-                onChange={e => setForm(p => ({ ...p, gameConfig: { ...p.gameConfig, durationMins: parseInt(e.target.value) || 0 } }))}
+                value={mins}
+                onChange={e => {
+                  const m = parseInt(e.target.value) || 0;
+                  const totalSecs = m * 60 + (form.gameConfig?.durationSecs ?? 20);
+                  setForm(p => ({
+                    ...p,
+                    gameConfig: { ...p.gameConfig, durationMins: m, durationSeconds: totalSecs }
+                  }));
+                }}
               />
             </div>
             <div className="flex-1">
@@ -45,19 +75,26 @@ function GameExtraConfig({ gameKey, form, setForm }) {
               <input
                 className="input"
                 type="number" min="0" max="59"
-                value={form.gameConfig?.durationSecs ?? 20}
-                onChange={e => setForm(p => ({ ...p, gameConfig: { ...p.gameConfig, durationSecs: parseInt(e.target.value) || 20 } }))}
+                value={secs}
+                onChange={e => {
+                  const s = Math.min(59, parseInt(e.target.value) || 0);
+                  const totalSecs = (form.gameConfig?.durationMins ?? 0) * 60 + s;
+                  setForm(p => ({
+                    ...p,
+                    gameConfig: { ...p.gameConfig, durationSecs: s, durationSeconds: totalSecs }
+                  }));
+                }}
               />
             </div>
           </div>
           <p className="text-xs text-gray-400 mt-1">
-            Total: <strong>{((form.gameConfig?.durationMins ?? 0) * 60) + (form.gameConfig?.durationSecs ?? 20)}s</strong>
+            Total: <strong>{mins * 60 + secs}s</strong>
           </p>
         </div>
       </div>
     );
   }
-  // Spin wheel extra config
+
   if (gameKey === 'spin_wheel') {
     return (
       <div className="space-y-3 pt-2 border-t border-gray-100">
@@ -72,7 +109,7 @@ function GameExtraConfig({ gameKey, form, setForm }) {
       </div>
     );
   }
-  // Scratch card extra config
+
   if (gameKey === 'scratch_card') {
     return (
       <div className="space-y-3 pt-2 border-t border-gray-100">
@@ -88,17 +125,18 @@ function GameExtraConfig({ gameKey, form, setForm }) {
       </div>
     );
   }
+
   return null;
 }
 
 export default function GamesPage() {
-  const [games, setGames] = useState([]);
-  const [offers, setOffers] = useState([]);
+  const [games, setGames]           = useState([]);
+  const [offers, setOffers]         = useState([]);
   const [configGame, setConfigGame] = useState(null);
-  const [infoGame, setInfoGame] = useState(null);
+  const [infoGame, setInfoGame]     = useState(null);
   const [previewGame, setPreviewGame] = useState(null);
   const [configForm, setConfigForm] = useState({ assignedOffers: [], timerMinutes: 0, gameConfig: {} });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]         = useState(false);
 
   useEffect(() => {
     api.get('/games').then(r => setGames(r.data));
@@ -107,10 +145,19 @@ export default function GamesPage() {
 
   const openConfig = (game) => {
     setConfigGame(game);
+    const savedGameConfig = game.orgConfig?.gameConfig || {};
+
+    // For catch_popcorn: restore durationMins/durationSecs from saved durationSeconds
+    let gameConfig = { ...savedGameConfig };
+    if (game.key === 'catch_popcorn') {
+      const { durationMins, durationSecs } = splitDuration(savedGameConfig);
+      gameConfig = { ...gameConfig, durationMins, durationSecs };
+    }
+
     setConfigForm({
       assignedOffers: game.orgConfig?.assignedOffers?.map(o => o._id || o) || [],
-      timerMinutes: game.orgConfig?.timerMinutes || 0,
-      gameConfig: game.orgConfig?.gameConfig || {}
+      timerMinutes:   game.orgConfig?.timerMinutes || 0,
+      gameConfig,
     });
   };
 
@@ -121,8 +168,9 @@ export default function GamesPage() {
     }
     try {
       await api.post(`/games/${game._id}/configure`, { isEnabled: enabled });
-      setGames(prev => prev.map(g => g._id === game._id
-        ? { ...g, orgConfig: { ...g.orgConfig, isEnabled: enabled } } : g));
+      setGames(prev => prev.map(g =>
+        g._id === game._id ? { ...g, orgConfig: { ...g.orgConfig, isEnabled: enabled } } : g
+      ));
       toast.success(enabled ? 'Game enabled' : 'Game disabled');
     } catch (err) { toast.error(err.response?.data?.error || 'Error'); }
   };
@@ -131,12 +179,15 @@ export default function GamesPage() {
     setSaving(true);
     try {
       const isEnabled = configGame._pendingEnable ? true : configGame.orgConfig?.isEnabled;
-      // Calculate total duration in seconds for catch_popcorn
-      let payload = { ...configForm, isEnabled };
+      const payload = { ...configForm, isEnabled };
+
+      // For catch_popcorn ensure durationSeconds is always in sync
       if (configGame.key === 'catch_popcorn' && payload.gameConfig) {
-        const totalSecs = ((payload.gameConfig.durationMins || 0) * 60) + (payload.gameConfig.durationSecs || 20);
-        payload.gameConfig = { ...payload.gameConfig, durationSeconds: totalSecs };
+        const mins = payload.gameConfig.durationMins ?? 0;
+        const secs = payload.gameConfig.durationSecs ?? 20;
+        payload.gameConfig = { ...payload.gameConfig, durationSeconds: mins * 60 + secs };
       }
+
       await api.post(`/games/${configGame._id}/configure`, payload);
       const r = await api.get('/games');
       setGames(r.data);
@@ -155,6 +206,9 @@ export default function GamesPage() {
           const meta = GAME_META[game.key] || { icon: '❓', preview: null };
           const enabled = game.orgConfig?.isEnabled;
           const offersCount = game.orgConfig?.assignedOffers?.length || 0;
+          const gc = game.orgConfig?.gameConfig || {};
+          const { durationMins, durationSecs } = splitDuration(gc);
+
           return (
             <div key={game._id} className="card p-5">
               <div className="flex items-start justify-between mb-3">
@@ -166,7 +220,10 @@ export default function GamesPage() {
                       ▶ Preview
                     </button>
                   )}
-                  <button onClick={() => setInfoGame(game)} className="text-xs text-gray-400 hover:text-brand px-2 py-1 rounded border border-gray-200">Info</button>
+                  <button onClick={() => setInfoGame(game)}
+                    className="text-xs text-gray-400 hover:text-brand px-2 py-1 rounded border border-gray-200">
+                    Info
+                  </button>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" className="sr-only peer" checked={!!enabled}
                       onChange={e => handleToggle(game, e.target.checked)} />
@@ -174,15 +231,33 @@ export default function GamesPage() {
                   </label>
                 </div>
               </div>
+
               <h3 className="font-semibold text-gray-900">{game.name}</h3>
               <p className="text-xs text-gray-500 mt-1 mb-3">{game.shortDescription}</p>
+
+              {/* Show current config summary for catch_popcorn */}
+              {game.key === 'catch_popcorn' && game.orgConfig?.gameConfig && (
+                <div className="flex gap-2 mb-3">
+                  <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full font-medium">
+                    🍿 Win: {gc.winThreshold ?? 10} catches
+                  </span>
+                  <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">
+                    ⏱ {durationMins > 0 ? `${durationMins}m ` : ''}{durationSecs}s
+                  </span>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${enabled ? 'badge-active' : 'bg-gray-100 text-gray-500'}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  enabled ? 'badge-active' : 'bg-gray-100 text-gray-500'
+                }`}>
                   {enabled ? 'Active' : 'Disabled'}
                 </span>
                 <span className="text-xs text-gray-400">{offersCount} offer{offersCount !== 1 ? 's' : ''}</span>
               </div>
-              <button onClick={() => openConfig(game)} className="mt-3 btn-secondary w-full text-xs py-1.5">Configure</button>
+              <button onClick={() => openConfig(game)} className="mt-3 btn-secondary w-full text-xs py-1.5">
+                Configure
+              </button>
             </div>
           );
         })}
@@ -207,13 +282,14 @@ export default function GamesPage() {
                     }))}
                   />
                   <span className="text-sm">{o.name}</span>
-                  <span className="text-xs text-gray-400 ml-auto">{o.discountType === 'percentage' ? `${o.discountValue}%` : `₹${o.discountValue}`}</span>
+                  <span className="text-xs text-gray-400 ml-auto">
+                    {o.discountType === 'percentage' ? `${o.discountValue}%` : `₹${o.discountValue}`}
+                  </span>
                 </label>
               ))}
             </div>
           </div>
 
-          {/* Game-specific extra config */}
           <GameExtraConfig
             gameKey={configGame?.key}
             form={configForm}
@@ -231,16 +307,18 @@ export default function GamesPage() {
         <div className="space-y-4">
           <p className="text-sm text-gray-600">{infoGame?.fullDescription}</p>
           {infoGame?.videoDemoUrl && (
-            <div><h4 className="label">Video Demo</h4>
+            <div>
+              <h4 className="label">Video Demo</h4>
               <a href={infoGame.videoDemoUrl} target="_blank" rel="noreferrer" className="text-brand text-sm underline">Watch Demo</a>
             </div>
           )}
           {infoGame?.rules?.length > 0 && (
-            <div><h4 className="label">Game Rules</h4>
+            <div>
+              <h4 className="label">Game Rules</h4>
               <ul className="space-y-1">
                 {infoGame.rules.map((r, i) => (
                   <li key={i} className="text-sm text-gray-600 flex gap-2">
-                    <span className="text-brand font-bold">{i+1}.</span>{r}
+                    <span className="text-brand font-bold">{i + 1}.</span>{r}
                   </li>
                 ))}
               </ul>
