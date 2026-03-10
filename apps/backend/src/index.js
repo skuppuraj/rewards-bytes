@@ -10,9 +10,12 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Auth
-app.use('/api/auth', require('./routes/auth.routes'));
+app.use('/api/auth',       require('./routes/auth.routes'));
 
-// Admin
+// Super Admin
+app.use('/api/superadmin', require('./routes/superadmin.routes'));
+
+// Org Admin
 app.use('/api/offers',       require('./routes/offer.routes'));
 app.use('/api/games',        require('./routes/game.routes'));
 app.use('/api/coupons',      require('./routes/coupon.routes'));
