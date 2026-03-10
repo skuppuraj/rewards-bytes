@@ -1,29 +1,50 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet, useParams, useNavigate } from 'react-router-dom';
+import { Outlet, useParams, useNavigate, useLocation } from 'react-router-dom';
 import publicApi from '../../lib/publicApi';
 import { useCustomerStore } from '../../store/customerStore';
 
 export const OrgContext = React.createContext(null);
 
+// Only actual game-play pages require login
+// Game list (/), login (/login), rules page (/start/:id) are all PUBLIC
+function isProtected(pathname, orgSlug) {
+  const sub = pathname.replace(`/play/${orgSlug}`, '');
+  return (
+    sub.startsWith('/play/')     ||   // /play/spin/ /play/scratch/ /play/popcorn/
+    sub.startsWith('/complete/') ||
+    sub === '/dashboard'         ||
+    sub.startsWith('/dashboard/')
+  );
+}
+
 export default function GamePortal() {
   const { orgSlug } = useParams();
   const [orgData, setOrgData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { settings, setCustomerAuth, customer, org } = useCustomerStore();
+  const { token }  = useCustomerStore();
+  const navigate   = useNavigate();
+  const location   = useLocation();
 
   useEffect(() => {
     publicApi.get(`/org/${orgSlug}`).then(r => {
       setOrgData(r.data);
       const s = r.data.settings;
       if (s) {
-        document.documentElement.style.setProperty('--brand-btn', s.primaryButtonColor || '#6366f1');
-        document.documentElement.style.setProperty('--brand-btn2', s.secondaryButtonColor || '#8b5cf6');
-        document.documentElement.style.setProperty('--brand-text', s.primaryTextColor || '#111827');
-        document.documentElement.style.setProperty('--brand-text2', s.secondaryTextColor || '#6b7280');
+        document.documentElement.style.setProperty('--brand-btn',   s.primaryButtonColor   || '#6366f1');
+        document.documentElement.style.setProperty('--brand-btn2',  s.secondaryButtonColor || '#8b5cf6');
+        document.documentElement.style.setProperty('--brand-text',  s.primaryTextColor     || '#111827');
+        document.documentElement.style.setProperty('--brand-text2', s.secondaryTextColor   || '#6b7280');
         if (s.fontStyle) document.body.style.fontFamily = `'${s.fontStyle}', sans-serif`;
       }
     }).catch(() => {}).finally(() => setLoading(false));
   }, [orgSlug]);
+
+  // Redirect to login for protected routes when not logged in
+  useEffect(() => {
+    if (!loading && isProtected(location.pathname, orgSlug) && !token) {
+      navigate(`/play/${orgSlug}/login`, { replace: true });
+    }
+  }, [loading, location.pathname, token, orgSlug, navigate]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -42,6 +63,8 @@ export default function GamePortal() {
       </div>
     </div>
   );
+
+  if (isProtected(location.pathname, orgSlug) && !token) return null;
 
   const bgStyle = orgData.settings?.backgroundImageUrl
     ? { backgroundImage: `url(${orgData.settings.backgroundImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
