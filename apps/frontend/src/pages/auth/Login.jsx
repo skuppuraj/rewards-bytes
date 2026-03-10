@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
-import useAuthStore from '../../store/authStore';
+import { useAuthStore } from '../../store/authStore';
 
 export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
