@@ -26,7 +26,6 @@ const ORG_TYPES = [
   { id: 'others',     label: '🏢 Others' },
 ];
 
-// Shared select style — does NOT inherit global `input` w-full
 const SELECT_CLS = 'shrink-0 border border-gray-200 rounded-xl bg-white text-sm text-gray-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer';
 
 function splitDuration(gameConfig = {}) {
@@ -98,8 +97,10 @@ function GameExtraConfig({ gameKey, form, setForm }) {
   return null;
 }
 
-function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, showConfigure = true }) {
+// mode: 'yours' | 'marketplace'
+function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, mode = 'yours' }) {
   const meta        = GAME_META[game.key] || { icon: '❓', preview: null };
+  const isAdded     = !!game.orgConfig;           // has been configured/added
   const enabled     = game.orgConfig?.isEnabled;
   const offersCount = game.orgConfig?.assignedOffers?.length || 0;
   const gc          = game.orgConfig?.gameConfig || {};
@@ -108,37 +109,52 @@ function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, showConfigur
 
   return (
     <div className="card p-5 flex flex-col">
+      {/* Header row */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center text-2xl">{meta.icon}</div>
-          <div>
+          <div className="flex flex-col gap-0.5">
             {cat && cat.id !== 'all' && (
-              <span className="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+              <span className="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide w-fit">
                 {cat.emoji} {cat.label}
               </span>
             )}
             {game.isNewLaunch && (
-              <span className="ml-1 text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">🚀 New</span>
+              <span className="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide w-fit">🚀 New</span>
             )}
           </div>
         </div>
+
         <div className="flex items-center gap-2">
           {meta.preview && (
-            <button onClick={() => onPreview(game)} className="text-xs text-purple-500 hover:text-purple-700 px-2 py-1 rounded border border-purple-200 hover:bg-purple-50">▶ Preview</button>
+            <button onClick={() => onPreview(game)}
+              className="text-xs text-purple-500 hover:text-purple-700 px-2 py-1 rounded border border-purple-200 hover:bg-purple-50">
+              ▶ Preview
+            </button>
           )}
-          <button onClick={() => onInfo(game)} className="text-xs text-gray-400 hover:text-brand px-2 py-1 rounded border border-gray-200">Info</button>
-          {showConfigure && (
+          <button onClick={() => onInfo(game)}
+            className="text-xs text-gray-400 hover:text-brand px-2 py-1 rounded border border-gray-200">
+            Info
+          </button>
+
+          {/* Toggle: always show in 'yours', show only if added in 'marketplace' */}
+          {(mode === 'yours' || isAdded) && (
             <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer" checked={!!enabled} onChange={e => onToggle(game, e.target.checked)} />
-              <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-brand peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+              <input type="checkbox" className="sr-only peer"
+                checked={!!enabled}
+                onChange={e => onToggle(game, e.target.checked)}
+              />
+              <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-brand peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all" />
             </label>
           )}
         </div>
       </div>
 
+      {/* Name + description */}
       <h3 className="font-semibold text-gray-900">{game.name}</h3>
       <p className="text-xs text-gray-500 mt-1 mb-3 flex-1">{game.shortDescription}</p>
 
+      {/* Config chips */}
       {game.key === 'catch_popcorn' && gc.winThreshold && (
         <div className="flex gap-2 mb-3 flex-wrap">
           <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full font-medium">🍿 Win: {gc.winThreshold} catches</span>
@@ -146,17 +162,27 @@ function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, showConfigur
         </div>
       )}
 
+      {/* Status + offers row */}
       <div className="flex items-center justify-between mt-auto pt-2">
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ enabled ? 'badge-active' : 'bg-gray-100 text-gray-500' }`}>
-          {enabled ? 'Active' : 'Disabled'}
+        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+          !isAdded ? 'bg-gray-100 text-gray-400'
+          : enabled ? 'badge-active'
+          : 'bg-gray-100 text-gray-500'
+        }`}>
+          {!isAdded ? 'Not added' : enabled ? 'Active' : 'Disabled'}
         </span>
         <span className="text-xs text-gray-400">{offersCount} offer{offersCount !== 1 ? 's' : ''}</span>
       </div>
 
-      {showConfigure
-        ? <button onClick={() => onConfigure(game)} className="mt-3 btn-secondary w-full text-xs py-1.5">Configure</button>
-        : <button onClick={() => onConfigure(game)} className="mt-3 btn-primary w-full text-xs py-1.5">{game.orgConfig ? 'Configure' : '+ Add to My Games'}</button>
-      }
+      {/* Bottom action button */}
+      {mode === 'yours' && (
+        <button onClick={() => onConfigure(game)} className="mt-3 btn-secondary w-full text-xs py-1.5">Configure</button>
+      )}
+      {mode === 'marketplace' && (
+        <button onClick={() => onConfigure(game)} className={`mt-3 w-full text-xs py-1.5 ${ isAdded ? 'btn-secondary' : 'btn-primary' }`}>
+          {isAdded ? '⚙️ Configure' : '+ Add to My Games'}
+        </button>
+      )}
     </div>
   );
 }
@@ -203,41 +229,26 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
 
   return (
     <div>
-      {/* Filters — single line, selects use custom style to avoid global input w-full */}
+      {/* Filters — single line */}
       <div className="card p-3 mb-5">
         <div className="flex items-center gap-2">
-
-          {/* Search — grows to fill space */}
           <div className="relative flex-1 min-w-0">
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-            <input
-              className="input pl-8 py-2 text-sm w-full"
-              placeholder="Search games..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
+            <input className="input pl-8 py-2 text-sm w-full" placeholder="Search games..."
+              value={search} onChange={e => setSearch(e.target.value)}
             />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">✕</button>
-            )}
+            {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">✕</button>}
           </div>
-
-          {/* Category — fixed width, custom style (no global input class) */}
           <select className={SELECT_CLS} value={category} onChange={e => setCategory(e.target.value)}>
             {CATEGORIES.map(c => <option key={c.id} value={c.id === 'all' ? '' : c.id}>{c.emoji} {c.label}</option>)}
           </select>
-
-          {/* Org Type — fixed width, custom style */}
           <select className={SELECT_CLS} value={orgType} onChange={e => setOrgType(e.target.value)}>
             {ORG_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
-
-          {/* New Launch */}
           <button
             onClick={() => setNewLaunch(p => !p)}
             className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-all whitespace-nowrap ${
-              newLaunch
-                ? 'bg-green-600 text-white border-green-600'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-green-500 hover:text-green-600'
+              newLaunch ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-200 hover:border-green-500 hover:text-green-600'
             }`}
           >
             🚀 New Launch
@@ -253,7 +264,9 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {games.map(game => (
-            <GameCard key={game._id} game={game} onConfigure={onConfigure} onInfo={onInfo} onPreview={onPreview} onToggle={onToggle} showConfigure={false} />
+            <GameCard key={game._id} game={game} mode="marketplace"
+              onConfigure={onConfigure} onInfo={onInfo} onPreview={onPreview} onToggle={onToggle}
+            />
           ))}
         </div>
       )}
@@ -285,7 +298,7 @@ function YourGamesTab({ onConfigure, onInfo, onPreview, onToggle, games }) {
         <div>
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">✅ Active ({active.length})</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {active.map(game => <GameCard key={game._id} game={game} onConfigure={onConfigure} onInfo={onInfo} onPreview={onPreview} onToggle={onToggle} />)}
+            {active.map(game => <GameCard key={game._id} game={game} mode="yours" onConfigure={onConfigure} onInfo={onInfo} onPreview={onPreview} onToggle={onToggle} />)}
           </div>
         </div>
       )}
@@ -293,7 +306,7 @@ function YourGamesTab({ onConfigure, onInfo, onPreview, onToggle, games }) {
         <div>
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">⏸️ Disabled ({inactive.length})</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {inactive.map(game => <GameCard key={game._id} game={game} onConfigure={onConfigure} onInfo={onInfo} onPreview={onPreview} onToggle={onToggle} />)}
+            {inactive.map(game => <GameCard key={game._id} game={game} mode="yours" onConfigure={onConfigure} onInfo={onInfo} onPreview={onPreview} onToggle={onToggle} />)}
           </div>
         </div>
       )}
