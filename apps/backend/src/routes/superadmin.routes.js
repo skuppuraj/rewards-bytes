@@ -1,6 +1,8 @@
-const router = require('express').Router();
-const jwt    = require('jsonwebtoken');
+const router  = require('express').Router();
+const bcrypt  = require('bcryptjs');
+const jwt     = require('jsonwebtoken');
 const superAdminAuth = require('../middleware/superAdminAuth.middleware');
+const SuperAdmin     = require('../models/SuperAdmin');
 const Organization   = require('../models/Organization');
 const Plan           = require('../models/Plan');
 const Subscription   = require('../models/Subscription');
@@ -10,29 +12,25 @@ const RazorpayConfig = require('../models/RazorpayConfig');
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (
-      email    !== process.env.SUPER_ADMIN_EMAIL ||
-      password !== process.env.SUPER_ADMIN_PASSWORD
-    ) return res.status(401).json({ error: 'Invalid credentials' });
-    const token = jwt.sign({ superAdmin: true }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, email });
+    const admin = await SuperAdmin.findOne({ email });
+    if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
+    const match = await bcrypt.compare(password, admin.password);
+    if (!match) return res.status(401).json({ error: 'Invalid credentials' });
+    const token = jwt.sign({ superAdmin: true, id: admin._id, email: admin.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, email: admin.email, name: admin.name });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /superadmin/organizations — list all orgs with active subscription
+// GET /superadmin/organizations
 router.get('/organizations', superAdminAuth, async (req, res) => {
   try {
     const orgs   = await Organization.find().sort({ createdAt: -1 }).lean();
     const orgIds = orgs.map(o => o._id);
-
-    const subs = await Subscription.find({
-      organizationId: { $in: orgIds },
-      status: 'active',
+    const subs   = await Subscription.find({
+      organizationId: { $in: orgIds }, status: 'active',
     }).populate('planId', 'name price durationDays').lean();
-
     const subMap = {};
     subs.forEach(s => { subMap[String(s.organizationId)] = s; });
-
     res.json(orgs.map(org => ({ ...org, activeSub: subMap[String(org._id)] || null })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -42,12 +40,10 @@ router.get('/purchase-stats', superAdminAuth, async (req, res) => {
   try {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-
     const [totalPaid, todayPaid] = await Promise.all([
       Subscription.find({ status: 'active', isTrial: false }).lean(),
       Subscription.find({ status: 'active', isTrial: false, startDate: { $gte: todayStart } }).lean(),
     ]);
-
     res.json({
       totalPurchases: totalPaid.length,
       todayPurchases: todayPaid.length,
@@ -97,7 +93,6 @@ router.get('/razorpay-config', superAdminAuth, async (req, res) => {
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-
 router.put('/razorpay-config', superAdminAuth, async (req, res) => {
   try {
     const { mode, testKeyId, testKeySecret, liveKeyId, liveKeySecret } = req.body;
