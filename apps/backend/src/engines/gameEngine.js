@@ -13,7 +13,7 @@ exports.startSession = async ({ organizationId, customerId, orgGameId, ipAddress
   const today    = new Date().toISOString().split('T')[0];
   const customer = await Customer.findById(customerId);
 
-  // ── One Play Per Game (lifetime) ──────────────────────────────────────────
+  // One Play Per Game (lifetime)
   if (settings?.onePlayPerGame) {
     const played = await GameSession.findOne({
       organizationId,
@@ -24,7 +24,7 @@ exports.startSession = async ({ organizationId, customerId, orgGameId, ipAddress
     if (played) throw new Error('You can only play each game once. Check your rewards!');
   }
 
-  // ── One Play Per Day Per Phone ─────────────────────────────────────────────
+  // One Play Per Day Per Phone
   if (settings?.onePlayPerDayPerPhone) {
     const exists = await FraudLog.findOne({
       organizationId,
@@ -35,7 +35,7 @@ exports.startSession = async ({ organizationId, customerId, orgGameId, ipAddress
     if (exists) throw new Error('You have already played this game today. Come back tomorrow!');
   }
 
-  // ── One Play Per IP ───────────────────────────────────────────────────────
+  // One Play Per IP
   if (settings?.onePlayPerIp && ipAddress) {
     const ipExists = await FraudLog.findOne({
       organizationId,
@@ -78,20 +78,23 @@ exports.completeSession = async ({ sessionId, result, organizationId }) => {
   session.result  = result;
   await session.save();
 
-  const { offer, coupon } = await generateReward({
-    organizationId,
-    customerId:    session.customerId,
-    orgGameId:     session.orgGameId,
-    gameSessionId: session._id
-  });
+  // Only reward if the player actually won
+  if (result?.won === true) {
+    const { offer, coupon } = await generateReward({
+      organizationId,
+      customerId:    session.customerId,
+      orgGameId:     session.orgGameId,
+      gameSessionId: session._id
+    });
 
-  if (offer)  session.offerId  = offer._id;
-  if (coupon) session.couponId = coupon._id;
-  await session.save();
+    if (offer)  session.offerId  = offer._id;
+    if (coupon) session.couponId = coupon._id;
+    await session.save();
+  }
 
   await Customer.findByIdAndUpdate(session.customerId, { $inc: { totalGamesPlayed: 1 } });
 
-  return { session, offer, coupon };
+  return { session, offer: session.offerId, coupon: session.couponId };
 };
 
 exports.abandonSession = async (sessionId) => {
