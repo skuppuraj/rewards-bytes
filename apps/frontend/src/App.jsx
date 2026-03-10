@@ -5,6 +5,7 @@ import { useAuthStore } from './store/authStore';
 import Layout from './components/Layout';
 import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
+import VerifyEmail from './pages/auth/VerifyEmail';
 import Dashboard from './pages/dashboard/Dashboard';
 import GamesPage from './pages/games/GamesPage';
 import OffersPage from './pages/offers/OffersPage';
@@ -37,9 +38,12 @@ export default function App() {
     <BrowserRouter>
       <Toaster position="top-right" />
       <Routes>
+        {/* Auth */}
+        <Route path="/login"        element={<Login />} />
+        <Route path="/signup"       element={<Signup />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+
         {/* Admin */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard"    element={<PrivateRoute adminOnly><Dashboard /></PrivateRoute>} />
@@ -52,6 +56,7 @@ export default function App() {
           <Route path="settings"     element={<PrivateRoute adminOnly><OrgSettingsPage /></PrivateRoute>} />
           <Route path="staff"        element={<PrivateRoute adminOnly><StaffPage /></PrivateRoute>} />
         </Route>
+
         {/* Customer Portal */}
         <Route path="/play/:orgSlug" element={<GamePortal />}>
           <Route index element={<GamesList />} />
