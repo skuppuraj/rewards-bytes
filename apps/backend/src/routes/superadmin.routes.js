@@ -1,11 +1,10 @@
 const router = require('express').Router();
-const superAdminAuth  = require('../middleware/superAdminAuth.middleware');
-const Organization    = require('../models/Organization');
-const Plan            = require('../models/Plan');
-const Subscription    = require('../models/Subscription');
-const RazorpayConfig  = require('../models/RazorpayConfig');
-const bcrypt          = require('bcryptjs');
-const jwt             = require('jsonwebtoken');
+const jwt    = require('jsonwebtoken');
+const superAdminAuth = require('../middleware/superAdminAuth.middleware');
+const Organization   = require('../models/Organization');
+const Plan           = require('../models/Plan');
+const Subscription   = require('../models/Subscription');
+const RazorpayConfig = require('../models/RazorpayConfig');
 
 // POST /superadmin/login
 router.post('/login', async (req, res) => {
@@ -20,32 +19,25 @@ router.post('/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /superadmin/organizations  — list all orgs with active subscription info
+// GET /superadmin/organizations — list all orgs with active subscription
 router.get('/organizations', superAdminAuth, async (req, res) => {
   try {
-    const orgs = await Organization.find().sort({ createdAt: -1 }).lean();
+    const orgs   = await Organization.find().sort({ createdAt: -1 }).lean();
     const orgIds = orgs.map(o => o._id);
 
-    // Fetch all active subscriptions for these orgs in one query
     const subs = await Subscription.find({
       organizationId: { $in: orgIds },
       status: 'active',
     }).populate('planId', 'name price durationDays').lean();
 
-    // Map orgId -> subscription
     const subMap = {};
     subs.forEach(s => { subMap[String(s.organizationId)] = s; });
 
-    const result = orgs.map(org => ({
-      ...org,
-      activeSub: subMap[String(org._id)] || null,
-    }));
-
-    res.json(result);
+    res.json(orgs.map(org => ({ ...org, activeSub: subMap[String(org._id)] || null })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /superadmin/purchase-stats  — total + today revenue & counts
+// GET /superadmin/purchase-stats
 router.get('/purchase-stats', superAdminAuth, async (req, res) => {
   try {
     const todayStart = new Date();
@@ -56,14 +48,11 @@ router.get('/purchase-stats', superAdminAuth, async (req, res) => {
       Subscription.find({ status: 'active', isTrial: false, startDate: { $gte: todayStart } }).lean(),
     ]);
 
-    const totalRevenue = totalPaid.reduce((a, s) => a + (s.amount || 0), 0);
-    const todayRevenue = todayPaid.reduce((a, s) => a + (s.amount || 0), 0);
-
     res.json({
       totalPurchases: totalPaid.length,
       todayPurchases: todayPaid.length,
-      totalRevenue,   // paise
-      todayRevenue,   // paise
+      totalRevenue:   totalPaid.reduce((a, s) => a + (s.amount || 0), 0),
+      todayRevenue:   todayPaid.reduce((a, s) => a + (s.amount || 0), 0),
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -76,38 +65,35 @@ router.patch('/organizations/:id', superAdminAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Plans CRUD ─────────────────────────────────────────────────────
-router.get('/plans', superAdminAuth, async (req, res) => {
+// ── Plans CRUD ──────────────────────────────────────────────────
+router.get   ('/plans',     superAdminAuth, async (req, res) => {
   try { res.json(await Plan.find().sort({ createdAt: -1 })); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
-
-router.post('/plans', superAdminAuth, async (req, res) => {
+router.post  ('/plans',     superAdminAuth, async (req, res) => {
   try { res.status(201).json(await Plan.create(req.body)); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
-
-router.put('/plans/:id', superAdminAuth, async (req, res) => {
+router.put   ('/plans/:id', superAdminAuth, async (req, res) => {
   try { res.json(await Plan.findByIdAndUpdate(req.params.id, req.body, { new: true })); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
-
 router.delete('/plans/:id', superAdminAuth, async (req, res) => {
   try { await Plan.findByIdAndDelete(req.params.id); res.json({ success: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Razorpay Config ───────────────────────────────────────────────
+// ── Razorpay Config ─────────────────────────────────────────────
 router.get('/razorpay-config', superAdminAuth, async (req, res) => {
   try {
     const cfg = await RazorpayConfig.findOne();
     if (!cfg) return res.json({});
     res.json({
-      mode:        cfg.mode,
-      testKeyId:   cfg.testKeyId,
-      liveKeyId:   cfg.liveKeyId,
-      testSecret:  cfg.testKeySecret ? '••••••••' : '',
-      liveSecret:  cfg.liveKeySecret ? '••••••••' : '',
+      mode:       cfg.mode,
+      testKeyId:  cfg.testKeyId,
+      liveKeyId:  cfg.liveKeyId,
+      testSecret: cfg.testKeySecret ? '••••••••' : '',
+      liveSecret: cfg.liveKeySecret ? '••••••••' : '',
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
