@@ -6,45 +6,67 @@ import publicApi from '../../../lib/publicApi';
 export default function PlayCatchPopcorn() {
   const { orgSlug, sessionId } = useParams();
   const navigate = useNavigate();
-  const iframeRef = useRef(null);
-  const [gameComplete, setGameComplete] = useState(false);
+  const [gameDone, setGameDone] = useState(false);
+  const savedRef = useRef(false);
+
+  // Fetch session config so we can pass duration + winThreshold to the iframe
+  const [iframeSrc, setIframeSrc] = useState(null);
+
+  useEffect(() => {
+    publicApi.get(`/game/session/${sessionId}`).then(r => {
+      const cfg = r.data?.orgGameId;
+      const durationSecs = Math.round((cfg?.timerMinutes || 0) * 60) || (cfg?.gameConfig?.durationSeconds) || 20;
+      const winThreshold = cfg?.gameConfig?.winThreshold || 10;
+      setIframeSrc(`/games/catch-popcorn/index.html?duration=${durationSecs}&winThreshold=${winThreshold}`);
+    }).catch(() => {
+      setIframeSrc('/games/catch-popcorn/index.html?duration=20&winThreshold=10');
+    });
+  }, [sessionId]);
 
   useEffect(() => {
     const handleMessage = async (event) => {
-      if (event.data?.type === 'GAME_COMPLETE') {
-        const { score } = event.data;
-        setGameComplete(true);
+      if (event.data?.type === 'GAME_COMPLETE' && !savedRef.current) {
+        savedRef.current = true;
+        const { score, won } = event.data;
+        setGameDone(true);
         try {
           await publicApi.post('/game/complete', {
             sessionId,
-            result: { won: score >= 10, score, type: 'catch_popcorn' }
+            result: { won, score, type: 'catch_popcorn' }
           });
-          navigate(`/play/${orgSlug}/complete/${sessionId}`);
         } catch (err) {
-          toast.error(err.response?.data?.error || 'Error completing game');
+          console.error('Error saving game result', err);
         }
+      }
+      if (event.data?.type === 'GO_TO_REWARDS') {
+        navigate(`/play/${orgSlug}/complete/${sessionId}`);
       }
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [sessionId, orgSlug, navigate]);
 
+  if (!iframeSrc) return (
+    <div style={{ position: 'fixed', inset: 0, background: '#1a0a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <p style={{ color: 'white', fontSize: '1rem' }}>⏳ Loading game...</p>
+    </div>
+  );
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#1a0a2e', zIndex: 50 }}>
       <iframe
-        ref={iframeRef}
-        src="/games/catch-popcorn/index.html"
+        src={iframeSrc}
         style={{ width: '100%', height: '100%', border: 'none' }}
         title="Catch the Popcorn"
         allow="autoplay"
       />
-      {gameComplete && (
+      {gameDone && (
         <div style={{
-          position: 'absolute', inset: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.5)'
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          padding: '12px', textAlign: 'center',
+          background: 'rgba(0,0,0,0.4)'
         }}>
-          <p style={{ color: 'white', fontSize: '1.2rem', fontWeight: 700 }}>⏳ Saving your score...</p>
+          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem' }}>✅ Score saved!</p>
         </div>
       )}
     </div>
