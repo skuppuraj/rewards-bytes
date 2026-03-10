@@ -3,16 +3,21 @@ import api from '../../lib/api';
 import PageHeader from '../../components/PageHeader';
 import Pagination from '../../components/Pagination';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
+
+const GAME_ICONS = { spin_wheel: '🎡', scratch_card: '🃏', catch_popcorn: '🍿' };
 
 export default function GameHistoryPage() {
-  const [data, setData] = useState({ history: [], total: 0, totalPages: 1 });
-  const [page, setPage] = useState(1);
+  const [data, setData]       = useState({ history: [], total: 0, totalPages: 1 });
+  const [page, setPage]       = useState(1);
   const [perPage, setPerPage] = useState(20);
-  const [search, setSearch] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [expanded, setExpanded] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [search, setSearch]   = useState('');
+  const [from, setFrom]       = useState('');
+  const [to, setTo]           = useState('');
+  const [expanded, setExpanded]   = useState({});
+  const [loading, setLoading]     = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { sessionId, gameName }
+  const [deleting, setDeleting]   = useState(false);
 
   const load = useCallback(async (overrides = {}) => {
     setLoading(true);
@@ -20,33 +25,47 @@ export default function GameHistoryPage() {
       const params = { page, limit: perPage, search, from, to, ...overrides };
       const r = await api.get('/game-history', { params });
       setData(r.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   }, [page, perPage, search, from, to]);
 
   useEffect(() => { load(); }, [page, perPage]);
 
   const handleSearch = () => { setPage(1); load({ page: 1 }); };
-  const handleClear = () => {
-    setSearch(''); setFrom(''); setTo('');
-    setPage(1);
+  const handleClear  = () => {
+    setSearch(''); setFrom(''); setTo(''); setPage(1);
     load({ search: '', from: '', to: '', page: 1 });
   };
 
   const toggle = (id) => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
+  const confirmDelete = (session) => {
+    setDeleteTarget({ sessionId: session._id, gameName: session.gameId?.name || 'this session' });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/game-history/session/${deleteTarget.sessionId}`);
+      toast.success('Session deleted');
+      setDeleteTarget(null);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error deleting');
+    } finally { setDeleting(false); }
+  };
+
   return (
     <div className="p-6">
       <PageHeader title="Game History" subtitle="All customer play sessions" />
 
+      {/* Filters */}
       <div className="card p-4 mb-4 flex flex-wrap gap-3">
         <input className="input flex-1 min-w-40" placeholder="Search by name or phone" value={search}
           onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} />
         <input className="input w-36" type="date" value={from} onChange={e => setFrom(e.target.value)} />
-        <input className="input w-36" type="date" value={to} onChange={e => setTo(e.target.value)} />
+        <input className="input w-36" type="date" value={to}   onChange={e => setTo(e.target.value)} />
         <button className="btn-primary" onClick={handleSearch}>Search</button>
         <button className="btn-secondary" onClick={handleClear}>Clear</button>
       </div>
@@ -64,6 +83,7 @@ export default function GameHistoryPage() {
           <tbody className="divide-y divide-gray-50">
             {data.history.map((row, i) => (
               <React.Fragment key={row.customer?._id}>
+                {/* Customer summary row */}
                 <tr className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-400">{(page - 1) * perPage + i + 1}</td>
                   <td className="px-4 py-3 font-medium">{row.customer?.name}</td>
@@ -76,29 +96,66 @@ export default function GameHistoryPage() {
                     </button>
                   </td>
                 </tr>
+
+                {/* Expanded sessions */}
                 {expanded[row.customer?._id] && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-3 bg-primary-50">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs font-semibold text-gray-600 mb-2">Games Played</p>
-                          {row.sessions.map(s => (
-                            <div key={s._id} className="text-xs text-gray-600 mb-1 flex items-center gap-2">
-                              <span className="font-medium">{s.gameId?.name}</span>
-                              <span className="text-gray-400">{s.startedAt ? format(new Date(s.startedAt), 'dd MMM, HH:mm') : ''}</span>
+                    <td colSpan={6} className="px-4 py-2 bg-primary-50">
+                      <div className="space-y-2">
+                        {row.sessions.map(s => (
+                          <div key={s._id} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
+                            {/* Game icon */}
+                            <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center text-lg flex-shrink-0">
+                              {GAME_ICONS[s.gameId?.key] || '🎮'}
                             </div>
-                          ))}
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-gray-600 mb-2">Offers Received</p>
-                          {row.sessions.filter(s => s.offerId).map(s => (
-                            <div key={s._id} className="text-xs text-gray-600 mb-1 flex items-center gap-2">
-                              <span className="font-medium">{s.offerId?.name}</span>
-                              {s.couponId && <span className="font-mono text-brand">{s.couponId.code}</span>}
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-800 truncate">{s.gameId?.name || 'Unknown Game'}</p>
+                              <p className="text-xs text-gray-400">
+                                {s.startedAt ? format(new Date(s.startedAt), 'dd MMM yyyy, HH:mm') : '—'}
+                              </p>
                             </div>
-                          ))}
-                          {!row.sessions.some(s => s.offerId) && <p className="text-xs text-gray-400">No offers received</p>}
-                        </div>
+
+                            {/* Score */}
+                            {s.result?.score !== undefined && (
+                              <div className="text-center flex-shrink-0">
+                                <p className="text-lg font-black text-brand">{s.result.score}</p>
+                                <p className="text-[10px] text-gray-400">score</p>
+                              </div>
+                            )}
+
+                            {/* Result badge */}
+                            <span className={`flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                              s.result?.won
+                                ? 'bg-green-100 text-green-700'
+                                : s.offerId
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {s.result?.won ? '🎉 Won' : s.offerId ? '🎁 Offer' : 'No reward'}
+                            </span>
+
+                            {/* Offer */}
+                            {s.offerId && (
+                              <div className="flex-shrink-0 text-right">
+                                <p className="text-xs font-medium text-gray-700">{s.offerId?.name}</p>
+                                {s.couponId && (
+                                  <p className="text-xs font-mono text-brand">{s.couponId.code}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Delete */}
+                            <button
+                              onClick={() => confirmDelete(s)}
+                              className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:bg-red-50 hover:text-red-500 transition-colors"
+                              title="Delete session"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     </td>
                   </tr>
@@ -112,14 +169,40 @@ export default function GameHistoryPage() {
         </table>
         <div className="px-4 pb-4">
           <Pagination
-            page={page}
-            totalPages={data.totalPages}
-            onPageChange={setPage}
-            perPage={perPage}
-            onPerPageChange={p => { setPerPage(p); setPage(1); }}
+            page={page} totalPages={data.totalPages} onPageChange={setPage}
+            perPage={perPage} onPerPageChange={p => { setPerPage(p); setPage(1); }}
           />
         </div>
       </div>
+
+      {/* Delete Confirm Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
+            <div className="text-3xl text-center mb-3">🗑️</div>
+            <h3 className="text-base font-bold text-gray-900 text-center mb-1">Delete Session?</h3>
+            <p className="text-sm text-gray-500 text-center mb-5">
+              This will permanently delete the <strong>{deleteTarget.gameName}</strong> session record.
+              The player\'s play-limit lock will also be cleared, allowing them to play again.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 disabled:opacity-60"
+              >
+                {deleting ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -40,29 +40,20 @@ router.post('/otp/send', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Verify OTP and login/register customer
+// Verify OTP
 router.post('/otp/verify', async (req, res) => {
   try {
     const { phone, otp, name, orgId, marketingConsent } = req.body;
     const result = await verifyOtp(phone, otp);
     if (!result.valid) return res.status(400).json({ error: result.reason });
-
-    // Find or create customer
     let customer = await Customer.findOne({ organizationId: orgId, phone });
     if (!customer) {
-      customer = await Customer.create({
-        organizationId: orgId,
-        name: name || phone,
-        phone,
-        isVerified: true,
-        marketingConsent: marketingConsent || false
-      });
+      customer = await Customer.create({ organizationId: orgId, name: name || phone, phone, isVerified: true, marketingConsent: marketingConsent || false });
     } else {
       customer.isVerified = true;
       if (name) customer.name = name;
       await customer.save();
     }
-
     const token = jwt.sign({ customerId: customer._id, orgId }, process.env.JWT_SECRET, { expiresIn: '1d' });
     res.json({ token, customer });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -80,19 +71,26 @@ const customerAuth = (req, res, next) => {
   } catch { res.status(401).json({ error: 'Invalid token' }); }
 };
 
+// GET session by ID (used by game pages to read config)
+router.get('/game/session/:sessionId', customerAuth, async (req, res) => {
+  try {
+    const session = await GameSession.findOne({ _id: req.params.sessionId, customerId: req.customerId })
+      .populate({
+        path: 'orgGameId',
+        populate: { path: 'gameId assignedOffers', select: 'name key rules shortDescription name discountType discountValue' }
+      });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    res.json(session);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Start game session
 router.post('/game/start', customerAuth, async (req, res) => {
   try {
     const { orgGameId } = req.body;
     const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const deviceAgent = req.headers['user-agent'];
-    const session = await startSession({
-      organizationId: req.orgId,
-      customerId: req.customerId,
-      orgGameId,
-      ipAddress,
-      deviceAgent
-    });
+    const session = await startSession({ organizationId: req.orgId, customerId: req.customerId, orgGameId, ipAddress, deviceAgent });
     res.json(session);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -141,7 +139,6 @@ router.get('/my/games', customerAuth, async (req, res) => {
 // Get customer's offers
 router.get('/my/offers', customerAuth, async (req, res) => {
   try {
-    // Auto expire
     await Coupon.updateMany({ customerId: req.customerId, status: 'active', expiresAt: { $lt: new Date() } }, { status: 'expired' });
     const coupons = await Coupon.find({ customerId: req.customerId })
       .populate('offerId', 'name shortDescription imageUrl discountType discountValue')
