@@ -16,7 +16,7 @@ export default function GameHistoryPage() {
   const [to, setTo]           = useState('');
   const [expanded, setExpanded]   = useState({});
   const [loading, setLoading]     = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null); // { sessionId, gameName }
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting]   = useState(false);
 
   const load = useCallback(async (overrides = {}) => {
@@ -60,14 +60,37 @@ export default function GameHistoryPage() {
     <div className="p-6">
       <PageHeader title="Game History" subtitle="All customer play sessions" />
 
-      {/* Filters */}
-      <div className="card p-4 mb-4 flex flex-wrap gap-3">
-        <input className="input flex-1 min-w-40" placeholder="Search by name or phone" value={search}
-          onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} />
-        <input className="input w-36" type="date" value={from} onChange={e => setFrom(e.target.value)} />
-        <input className="input w-36" type="date" value={to}   onChange={e => setTo(e.target.value)} />
-        <button className="btn-primary" onClick={handleSearch}>Search</button>
-        <button className="btn-secondary" onClick={handleClear}>Clear</button>
+      {/* Filters — single line */}
+      <div className="card p-3 mb-4">
+        <div className="flex items-center gap-2">
+          {/* Search */}
+          <div className="relative flex-1 min-w-0">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+            <input
+              className="input pl-7 py-2 text-sm w-full"
+              placeholder="Search by name or phone"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            />
+          </div>
+
+          {/* From date */}
+          <div className="flex items-center gap-1 shrink-0">
+            <label className="text-xs text-gray-400 whitespace-nowrap">From</label>
+            <input className="input py-2 text-sm w-32" type="date" value={from} onChange={e => setFrom(e.target.value)} />
+          </div>
+
+          {/* To date */}
+          <div className="flex items-center gap-1 shrink-0">
+            <label className="text-xs text-gray-400 whitespace-nowrap">To</label>
+            <input className="input py-2 text-sm w-32" type="date" value={to} onChange={e => setTo(e.target.value)} />
+          </div>
+
+          {/* Actions */}
+          <button className="btn-primary py-2 px-4 text-sm shrink-0" onClick={handleSearch}>Search</button>
+          <button className="btn-secondary py-2 px-3 text-sm shrink-0" onClick={handleClear}>✕ Clear</button>
+        </div>
       </div>
 
       <div className="card overflow-hidden">
@@ -83,7 +106,6 @@ export default function GameHistoryPage() {
           <tbody className="divide-y divide-gray-50">
             {data.history.map((row, i) => (
               <React.Fragment key={row.customer?._id}>
-                {/* Customer summary row */}
                 <tr className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-400">{(page - 1) * perPage + i + 1}</td>
                   <td className="px-4 py-3 font-medium">{row.customer?.name}</td>
@@ -97,46 +119,34 @@ export default function GameHistoryPage() {
                   </td>
                 </tr>
 
-                {/* Expanded sessions */}
                 {expanded[row.customer?._id] && (
                   <tr>
                     <td colSpan={6} className="px-4 py-2 bg-primary-50">
                       <div className="space-y-2">
                         {row.sessions.map(s => (
                           <div key={s._id} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
-                            {/* Game icon */}
                             <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center text-lg flex-shrink-0">
                               {GAME_ICONS[s.gameId?.key] || '🎮'}
                             </div>
-
-                            {/* Info */}
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-gray-800 truncate">{s.gameId?.name || 'Unknown Game'}</p>
                               <p className="text-xs text-gray-400">
                                 {s.startedAt ? format(new Date(s.startedAt), 'dd MMM yyyy, HH:mm') : '—'}
                               </p>
                             </div>
-
-                            {/* Score */}
                             {s.result?.score !== undefined && (
                               <div className="text-center flex-shrink-0">
                                 <p className="text-lg font-black text-brand">{s.result.score}</p>
                                 <p className="text-[10px] text-gray-400">score</p>
                               </div>
                             )}
-
-                            {/* Result badge */}
                             <span className={`flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${
-                              s.result?.won
-                                ? 'bg-green-100 text-green-700'
-                                : s.offerId
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-gray-100 text-gray-500'
+                              s.result?.won ? 'bg-green-100 text-green-700'
+                              : s.offerId   ? 'bg-blue-100 text-blue-700'
+                              : 'bg-gray-100 text-gray-500'
                             }`}>
                               {s.result?.won ? '🎉 Won' : s.offerId ? '🎁 Offer' : 'No reward'}
                             </span>
-
-                            {/* Offer */}
                             {s.offerId && (
                               <div className="flex-shrink-0 text-right">
                                 <p className="text-xs font-medium text-gray-700">{s.offerId?.name}</p>
@@ -145,15 +155,11 @@ export default function GameHistoryPage() {
                                 )}
                               </div>
                             )}
-
-                            {/* Delete */}
                             <button
                               onClick={() => confirmDelete(s)}
                               className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:bg-red-50 hover:text-red-500 transition-colors"
                               title="Delete session"
-                            >
-                              🗑️
-                            </button>
+                            >🗑️</button>
                           </div>
                         ))}
                       </div>
@@ -183,22 +189,18 @@ export default function GameHistoryPage() {
             <h3 className="text-base font-bold text-gray-900 text-center mb-1">Delete Session?</h3>
             <p className="text-sm text-gray-500 text-center mb-5">
               This will permanently delete the <strong>{deleteTarget.gameName}</strong> session record.
-              The player\'s play-limit lock will also be cleared, allowing them to play again.
+              The player's play-limit lock will also be cleared, allowing them to play again.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
+              >Cancel</button>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
                 className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 disabled:opacity-60"
-              >
-                {deleting ? 'Deleting...' : 'Yes, Delete'}
-              </button>
+              >{deleting ? 'Deleting...' : 'Yes, Delete'}</button>
             </div>
           </div>
         </div>
