@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 
-export default function OrgTopbar() {
+export default function OrgTopbar({ onMenuClick }) {
   const { org } = useAuthStore();
   const [sub, setSub]       = useState(null);
   const [loaded, setLoaded] = useState(false);
@@ -40,18 +40,29 @@ export default function OrgTopbar() {
     'bg-purple-100 text-purple-700';
 
   return (
-    <div className={`flex items-center justify-between px-5 py-2 border-b text-xs flex-shrink-0 ${barBg}`}>
-      {/* Left: org name + plan badge */}
+    <div className={`flex items-center justify-between px-4 py-2 border-b text-xs flex-shrink-0 ${barBg}`}>
+      {/* Left: hamburger (mobile) + org name + plan badge */}
       <div className="flex items-center gap-2.5">
+        {/* Hamburger — visible only on mobile */}
+        <button
+          onClick={onMenuClick}
+          className="md:hidden p-1.5 -ml-1 rounded-lg text-gray-500 hover:bg-gray-100 flex flex-col gap-1"
+          aria-label="Open menu"
+        >
+          <span className="block w-5 h-0.5 bg-gray-600 rounded" />
+          <span className="block w-5 h-0.5 bg-gray-600 rounded" />
+          <span className="block w-5 h-0.5 bg-gray-600 rounded" />
+        </button>
+
         <span className="font-semibold text-gray-700">{org?.name}</span>
-        <span className="text-gray-300">|</span>
+        <span className="text-gray-300 hidden sm:inline">|</span>
 
         {isExpired ? (
-          <span className="font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">
+          <span className="font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600 hidden sm:inline">
             No Active Plan
           </span>
         ) : (
-          <span className={`font-bold px-2 py-0.5 rounded-full ${badgeCls}`}>
+          <span className={`font-bold px-2 py-0.5 rounded-full ${badgeCls} hidden sm:inline`}>
             {isTrial ? `🧪 Trial — ${planName}` : `✅ ${planName}`}
           </span>
         )}
@@ -60,7 +71,7 @@ export default function OrgTopbar() {
       {/* Right: expiry info + action */}
       <div className="flex items-center gap-3">
         {isActive && expiresAt && (
-          <span className={`${
+          <span className={`hidden sm:inline ${
             isWarning ? 'text-yellow-700 font-semibold' : 'text-gray-400'
           }`}>
             {daysLeft > 0
@@ -70,10 +81,9 @@ export default function OrgTopbar() {
         )}
 
         {isExpired && (
-          <span className="text-red-600 font-semibold">❌ Subscription expired</span>
+          <span className="text-red-600 font-semibold hidden sm:inline">❌ Subscription expired</span>
         )}
 
-        {/* Show upgrade button on: trial, warning (≤7d), or expired */}
         {(isTrial || isWarning || isExpired) && (
           <button
             onClick={() => navigate('/account')}
