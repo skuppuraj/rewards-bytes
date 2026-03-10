@@ -26,6 +26,9 @@ const ORG_TYPES = [
   { id: 'others',     label: '🏢 Others' },
 ];
 
+// Shared select style — does NOT inherit global `input` w-full
+const SELECT_CLS = 'shrink-0 border border-gray-200 rounded-xl bg-white text-sm text-gray-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand cursor-pointer';
+
 function splitDuration(gameConfig = {}) {
   if (gameConfig.durationMins !== undefined || gameConfig.durationSecs !== undefined)
     return { durationMins: gameConfig.durationMins ?? 0, durationSecs: gameConfig.durationSecs ?? 20 };
@@ -96,12 +99,12 @@ function GameExtraConfig({ gameKey, form, setForm }) {
 }
 
 function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, showConfigure = true }) {
-  const meta    = GAME_META[game.key] || { icon: '❓', preview: null };
-  const enabled = game.orgConfig?.isEnabled;
+  const meta        = GAME_META[game.key] || { icon: '❓', preview: null };
+  const enabled     = game.orgConfig?.isEnabled;
   const offersCount = game.orgConfig?.assignedOffers?.length || 0;
-  const gc      = game.orgConfig?.gameConfig || {};
+  const gc          = game.orgConfig?.gameConfig || {};
   const { durationMins, durationSecs } = splitDuration(gc);
-  const cat     = CATEGORIES.find(c => c.id === (game.category || 'lucky'));
+  const cat = CATEGORIES.find(c => c.id === (game.category || 'lucky'));
 
   return (
     <div className="card p-5 flex flex-col">
@@ -150,14 +153,10 @@ function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, showConfigur
         <span className="text-xs text-gray-400">{offersCount} offer{offersCount !== 1 ? 's' : ''}</span>
       </div>
 
-      {showConfigure && (
-        <button onClick={() => onConfigure(game)} className="mt-3 btn-secondary w-full text-xs py-1.5">Configure</button>
-      )}
-      {!showConfigure && (
-        <button onClick={() => onConfigure(game)} className="mt-3 btn-primary w-full text-xs py-1.5">
-          {game.orgConfig ? 'Configure' : '+ Add to My Games'}
-        </button>
-      )}
+      {showConfigure
+        ? <button onClick={() => onConfigure(game)} className="mt-3 btn-secondary w-full text-xs py-1.5">Configure</button>
+        : <button onClick={() => onConfigure(game)} className="mt-3 btn-primary w-full text-xs py-1.5">{game.orgConfig ? 'Configure' : '+ Add to My Games'}</button>
+      }
     </div>
   );
 }
@@ -190,16 +189,8 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
     finally { setLoading(false); }
   }, [search, category, orgType, newLaunch, page, loading]);
 
-  useEffect(() => {
-    setGames([]);
-    setPage(1);
-    setHasMore(true);
-  }, [search, category, orgType, newLaunch]);
-
-  useEffect(() => {
-    if (games.length === 0 && hasMore) fetchGames(true);
-  }, [games, hasMore]);
-
+  useEffect(() => { setGames([]); setPage(1); setHasMore(true); }, [search, category, orgType, newLaunch]);
+  useEffect(() => { if (games.length === 0 && hasMore) fetchGames(true); }, [games, hasMore]);
   useEffect(() => {
     const el = loaderRef.current;
     if (!el) return;
@@ -212,10 +203,11 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
 
   return (
     <div>
-      {/* Filters — strict single line */}
+      {/* Filters — single line, selects use custom style to avoid global input w-full */}
       <div className="card p-3 mb-5">
         <div className="flex items-center gap-2">
-          {/* Search — takes remaining space */}
+
+          {/* Search — grows to fill space */}
           <div className="relative flex-1 min-w-0">
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
             <input
@@ -229,25 +221,17 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
             )}
           </div>
 
-          {/* Category select */}
-          <select
-            className="input py-2 text-sm shrink-0 w-36"
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-          >
+          {/* Category — fixed width, custom style (no global input class) */}
+          <select className={SELECT_CLS} value={category} onChange={e => setCategory(e.target.value)}>
             {CATEGORIES.map(c => <option key={c.id} value={c.id === 'all' ? '' : c.id}>{c.emoji} {c.label}</option>)}
           </select>
 
-          {/* Org type select */}
-          <select
-            className="input py-2 text-sm shrink-0 w-38"
-            value={orgType}
-            onChange={e => setOrgType(e.target.value)}
-          >
+          {/* Org Type — fixed width, custom style */}
+          <select className={SELECT_CLS} value={orgType} onChange={e => setOrgType(e.target.value)}>
             {ORG_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
 
-          {/* New Launch toggle */}
+          {/* New Launch */}
           <button
             onClick={() => setNewLaunch(p => !p)}
             className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-all whitespace-nowrap ${
@@ -261,7 +245,6 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
         </div>
       </div>
 
-      {/* Game grid */}
       {games.length === 0 && !loading ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-4xl mb-2">🎮</p>
@@ -270,20 +253,11 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {games.map(game => (
-            <GameCard
-              key={game._id}
-              game={game}
-              onConfigure={onConfigure}
-              onInfo={onInfo}
-              onPreview={onPreview}
-              onToggle={onToggle}
-              showConfigure={false}
-            />
+            <GameCard key={game._id} game={game} onConfigure={onConfigure} onInfo={onInfo} onPreview={onPreview} onToggle={onToggle} showConfigure={false} />
           ))}
         </div>
       )}
 
-      {/* Infinite scroll loader */}
       <div ref={loaderRef} className="py-6 text-center">
         {loading && <span className="text-sm text-gray-400">⏳ Loading more...</span>}
         {!hasMore && games.length > 0 && <span className="text-xs text-gray-300">— All games loaded —</span>}
@@ -311,9 +285,7 @@ function YourGamesTab({ onConfigure, onInfo, onPreview, onToggle, games }) {
         <div>
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">✅ Active ({active.length})</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {active.map(game => (
-              <GameCard key={game._id} game={game} onConfigure={onConfigure} onInfo={onInfo} onPreview={onPreview} onToggle={onToggle} />
-            ))}
+            {active.map(game => <GameCard key={game._id} game={game} onConfigure={onConfigure} onInfo={onInfo} onPreview={onPreview} onToggle={onToggle} />)}
           </div>
         </div>
       )}
@@ -321,9 +293,7 @@ function YourGamesTab({ onConfigure, onInfo, onPreview, onToggle, games }) {
         <div>
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">⏸️ Disabled ({inactive.length})</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {inactive.map(game => (
-              <GameCard key={game._id} game={game} onConfigure={onConfigure} onInfo={onInfo} onPreview={onPreview} onToggle={onToggle} />
-            ))}
+            {inactive.map(game => <GameCard key={game._id} game={game} onConfigure={onConfigure} onInfo={onInfo} onPreview={onPreview} onToggle={onToggle} />)}
           </div>
         </div>
       )}
@@ -401,9 +371,7 @@ export default function GamesPage() {
           { id: 'yours',       label: '🎮 Your Games',  badge: games.filter(g => g.orgConfig?.isEnabled).length },
           { id: 'marketplace', label: '🏪 Marketplace', badge: null },
         ].map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
+          <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
               tab === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}
@@ -418,12 +386,8 @@ export default function GamesPage() {
         ))}
       </div>
 
-      {tab === 'yours' && (
-        <YourGamesTab games={games} onConfigure={openConfig} onInfo={setInfoGame} onPreview={setPreviewGame} onToggle={handleToggle} />
-      )}
-      {tab === 'marketplace' && (
-        <MarketplaceTab onConfigure={openConfig} onInfo={setInfoGame} onPreview={setPreviewGame} onToggle={handleToggle} />
-      )}
+      {tab === 'yours'       && <YourGamesTab games={games} onConfigure={openConfig} onInfo={setInfoGame} onPreview={setPreviewGame} onToggle={handleToggle} />}
+      {tab === 'marketplace' && <MarketplaceTab onConfigure={openConfig} onInfo={setInfoGame} onPreview={setPreviewGame} onToggle={handleToggle} />}
 
       {/* Configure Modal */}
       <Modal open={!!configGame} onClose={() => setConfigGame(null)} title={`Configure — ${configGame?.name}`} size="md">
