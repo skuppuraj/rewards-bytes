@@ -1,32 +1,60 @@
 /**
- * Run once to create the super admin account:
- *   node apps/backend/src/seeders/superadmin.seed.js
+ * Run from the backend directory:
+ *   cd apps/backend && node src/seeders/superadmin.seed.js
  *
- * Set env vars first or create a .env in backend root:
- *   MONGODB_URI=mongodb://...
- *   SUPER_ADMIN_EMAIL=admin@rewardbytes.com
- *   SUPER_ADMIN_PASSWORD=ChangeMe123!
+ * Or from repo root:
+ *   node apps/backend/src/seeders/superadmin.seed.js
  */
-require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+const path = require('path');
+const fs   = require('fs');
+
+// Try .env locations from most specific to fallback
+const envPaths = [
+  path.resolve(__dirname, '../../.env'),        // apps/backend/.env
+  path.resolve(__dirname, '../../../.env'),      // apps/.env
+  path.resolve(__dirname, '../../../../.env'),   // repo root .env
+  path.resolve(process.cwd(), '.env'),           // wherever you run from
+];
+
+const envFile = envPaths.find(p => fs.existsSync(p));
+if (envFile) {
+  require('dotenv').config({ path: envFile });
+  console.log('Loaded .env from:', envFile);
+} else {
+  console.warn('No .env file found — relying on existing env vars');
+}
+
+const mongoose   = require('mongoose');
+const bcrypt     = require('bcryptjs');
 const SuperAdmin = require('../models/SuperAdmin');
 
 async function seed() {
-  await mongoose.connect(process.env.MONGODB_URI);
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    console.error('\n❌ MONGODB_URI is not set.');
+    console.error('Create apps/backend/.env with:');
+    console.error('  MONGODB_URI=mongodb://localhost:27017/rewardbytes\n');
+    process.exit(1);
+  }
+
+  await mongoose.connect(uri);
+  console.log('Connected to MongoDB');
+
   const email    = process.env.SUPER_ADMIN_EMAIL    || 'superadmin@rewardbytes.com';
   const password = process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin@123';
-  const name     = 'Super Admin';
 
   const existing = await SuperAdmin.findOne({ email });
   if (existing) {
-    console.log('Super admin already exists:', email);
+    console.log('⚠️  Super admin already exists:', email);
     process.exit(0);
   }
+
   const hashed = await bcrypt.hash(password, 10);
-  await SuperAdmin.create({ name, email, password: hashed });
-  console.log('✅ Super admin created:', email);
+  await SuperAdmin.create({ name: 'Super Admin', email, password: hashed });
+  console.log('✅ Super admin created!');
+  console.log('   Email   :', email);
+  console.log('   Password:', password);
   process.exit(0);
 }
 
-seed().catch(err => { console.error(err); process.exit(1); });
+seed().catch(err => { console.error('❌', err.message); process.exit(1); });
