@@ -190,7 +190,6 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
     finally { setLoading(false); }
   }, [search, category, orgType, newLaunch, page, loading]);
 
-  // Reset + reload on filter change
   useEffect(() => {
     setGames([]);
     setPage(1);
@@ -201,7 +200,6 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
     if (games.length === 0 && hasMore) fetchGames(true);
   }, [games, hasMore]);
 
-  // Infinite scroll observer
   useEffect(() => {
     const el = loaderRef.current;
     if (!el) return;
@@ -214,11 +212,11 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
 
   return (
     <div>
-      {/* Filters bar */}
+      {/* Filters — strict single line */}
       <div className="card p-3 mb-5">
-        <div className="flex flex-wrap gap-2 items-center">
-          {/* Search */}
-          <div className="relative flex-1 min-w-48">
+        <div className="flex items-center gap-2">
+          {/* Search — takes remaining space */}
+          <div className="relative flex-1 min-w-0">
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
             <input
               className="input pl-8 py-2 text-sm w-full"
@@ -226,32 +224,36 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
-            {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">✕</button>}
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">✕</button>
+            )}
           </div>
 
-          {/* Category */}
+          {/* Category select */}
           <select
-            className="input py-2 text-sm w-auto"
+            className="input py-2 text-sm shrink-0 w-36"
             value={category}
             onChange={e => setCategory(e.target.value)}
           >
             {CATEGORIES.map(c => <option key={c.id} value={c.id === 'all' ? '' : c.id}>{c.emoji} {c.label}</option>)}
           </select>
 
-          {/* Org type */}
+          {/* Org type select */}
           <select
-            className="input py-2 text-sm w-auto"
+            className="input py-2 text-sm shrink-0 w-38"
             value={orgType}
             onChange={e => setOrgType(e.target.value)}
           >
             {ORG_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
 
-          {/* New launch toggle */}
+          {/* New Launch toggle */}
           <button
             onClick={() => setNewLaunch(p => !p)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-all ${
-              newLaunch ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-200 hover:border-green-500'
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-all whitespace-nowrap ${
+              newLaunch
+                ? 'bg-green-600 text-white border-green-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-green-500 hover:text-green-600'
             }`}
           >
             🚀 New Launch
@@ -331,7 +333,7 @@ function YourGamesTab({ onConfigure, onInfo, onPreview, onToggle, games }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function GamesPage() {
-  const [tab, setTab]                 = useState('yours');   // 'yours' | 'marketplace'
+  const [tab, setTab]                 = useState('yours');
   const [games, setGames]             = useState([]);
   const [offers, setOffers]           = useState([]);
   const [configGame, setConfigGame]   = useState(null);
@@ -340,9 +342,7 @@ export default function GamesPage() {
   const [configForm, setConfigForm]   = useState({ assignedOffers: [], timerMinutes: 0, gameConfig: {} });
   const [saving, setSaving]           = useState(false);
 
-  const loadMyGames = () => {
-    api.get('/games').then(r => setGames(r.data));
-  };
+  const loadMyGames = () => api.get('/games').then(r => setGames(r.data));
 
   useEffect(() => {
     loadMyGames();
@@ -365,10 +365,7 @@ export default function GamesPage() {
   };
 
   const handleToggle = async (game, enabled) => {
-    if (enabled && !game.orgConfig?.assignedOffers?.length) {
-      openConfig({ ...game, _pendingEnable: true });
-      return;
-    }
+    if (enabled && !game.orgConfig?.assignedOffers?.length) { openConfig({ ...game, _pendingEnable: true }); return; }
     try {
       await api.post(`/games/${game._id}/configure`, { isEnabled: enabled });
       loadMyGames();
@@ -393,8 +390,6 @@ export default function GamesPage() {
     } catch (err) { toast.error(err.response?.data?.error || 'Error'); }
     finally { setSaving(false); }
   };
-
-  const myGameIds = new Set(games.filter(g => g.orgConfig).map(g => String(g._id)));
 
   return (
     <div className="p-6">
@@ -423,23 +418,11 @@ export default function GamesPage() {
         ))}
       </div>
 
-      {/* Tab content */}
       {tab === 'yours' && (
-        <YourGamesTab
-          games={games}
-          onConfigure={openConfig}
-          onInfo={setInfoGame}
-          onPreview={setPreviewGame}
-          onToggle={handleToggle}
-        />
+        <YourGamesTab games={games} onConfigure={openConfig} onInfo={setInfoGame} onPreview={setPreviewGame} onToggle={handleToggle} />
       )}
       {tab === 'marketplace' && (
-        <MarketplaceTab
-          onConfigure={openConfig}
-          onInfo={setInfoGame}
-          onPreview={setPreviewGame}
-          onToggle={handleToggle}
-        />
+        <MarketplaceTab onConfigure={openConfig} onInfo={setInfoGame} onPreview={setPreviewGame} onToggle={handleToggle} />
       )}
 
       {/* Configure Modal */}
