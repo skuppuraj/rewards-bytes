@@ -24,11 +24,8 @@ export default function CouponsPage() {
       const params = { page, limit: perPage, ...filters, ...overrides };
       const r = await api.get('/coupons', { params });
       setData(r.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   }, [page, perPage, filters]);
 
   useEffect(() => { load(); }, [page, perPage]);
@@ -86,10 +83,10 @@ export default function CouponsPage() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <PageHeader title="Coupons" subtitle={`${data.total} total coupons`} />
 
-      {/* Filters */}
+      {/* Filters — 2-col on mobile, 3-col on md, 6-col on lg */}
       <div className="card p-4 mb-4">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <input className="input" type="date" placeholder="From" value={filters.from} onChange={e => setFilters(p => ({ ...p, from: e.target.value }))} />
@@ -110,10 +107,11 @@ export default function CouponsPage() {
         </div>
       </div>
 
+      {/* overflow-x-auto fixes hidden table on mobile */}
       <div className="card overflow-hidden">
         {loading && <div className="text-center py-3 text-sm text-gray-400">Loading...</div>}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[680px]">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 {['#', 'Code', 'Customer', 'Offer', 'Start', 'Expires', 'Days Left', 'Status', 'Actions'].map(h => (
@@ -125,19 +123,19 @@ export default function CouponsPage() {
               {data.coupons.map((c, i) => (
                 <tr key={c._id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-400">{(page - 1) * perPage + i + 1}</td>
-                  <td className="px-4 py-3 font-mono font-bold text-brand">{c.code}</td>
+                  <td className="px-4 py-3 font-mono font-bold text-brand whitespace-nowrap">{c.code}</td>
                   <td className="px-4 py-3">
-                    <p className="font-medium">{c.customerId?.name}</p>
+                    <p className="font-medium whitespace-nowrap">{c.customerId?.name}</p>
                     <p className="text-xs text-gray-400">{c.customerId?.phone}</p>
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-600">{c.offerId?.name}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{c.startDate ? format(new Date(c.startDate), 'dd MMM yy') : '-'}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{c.expiresAt ? format(new Date(c.expiresAt), 'dd MMM yy') : '-'}</td>
-                  <td className="px-4 py-3 text-xs">{daysRemaining(c.expiresAt)}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{c.offerId?.name}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.startDate ? format(new Date(c.startDate), 'dd MMM yy') : '-'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.expiresAt ? format(new Date(c.expiresAt), 'dd MMM yy') : '-'}</td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap">{daysRemaining(c.expiresAt)}</td>
                   <td className="px-4 py-3"><span className={`badge-${c.status}`}>{c.status}</span></td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-1 flex-wrap">
-                      {c.status === 'active' && <button onClick={() => openRedeem(c)} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded hover:bg-green-100">Redeem</button>}
+                    <div className="flex gap-1 flex-nowrap">
+                      {c.status === 'active' && <button onClick={() => openRedeem(c)} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded hover:bg-green-100 whitespace-nowrap">Redeem</button>}
                       <button onClick={() => { setEditModal(c); setAdditionalDays(7); }} className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded hover:bg-blue-100">Extend</button>
                       <button onClick={() => handleNotify(c)} className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded hover:bg-purple-100">Notify</button>
                       <button onClick={() => handleDelete(c._id)} className="text-xs bg-red-50 text-red-700 px-2 py-1 rounded hover:bg-red-100">Del</button>
@@ -152,13 +150,8 @@ export default function CouponsPage() {
           </table>
         </div>
         <div className="px-4 pb-4">
-          <Pagination
-            page={page}
-            totalPages={data.totalPages}
-            onPageChange={setPage}
-            perPage={perPage}
-            onPerPageChange={p => { setPerPage(p); setPage(1); }}
-          />
+          <Pagination page={page} totalPages={data.totalPages} onPageChange={setPage}
+            perPage={perPage} onPerPageChange={p => { setPerPage(p); setPage(1); }} />
         </div>
       </div>
 
