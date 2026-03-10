@@ -6,6 +6,17 @@ import { OrgContext } from './GamePortal';
 
 const GAME_ICONS = { spin_wheel: '🎡', scratch_card: '🃏', catch_popcorn: '🍿' };
 
+// Category mapping — which game keys belong to each category
+const CATEGORIES = [
+  { id: 'all',      label: 'All Games', emoji: '🎮' },
+  { id: 'arcade',   label: 'Arcade',    emoji: '🕹️',  keys: ['catch_popcorn'] },
+  { id: 'lucky',    label: 'Lucky',     emoji: '🍀',  keys: ['spin_wheel', 'scratch_card'] },
+];
+
+function getCategory(gameKey) {
+  return CATEGORIES.find(c => c.keys?.includes(gameKey))?.id || 'lucky';
+}
+
 function getDynamicRules(gameKey, gameConfig = {}, staticRules = []) {
   if (gameKey === 'catch_popcorn') {
     const threshold = gameConfig.winThreshold ?? 10;
@@ -25,19 +36,57 @@ function getDynamicRules(gameKey, gameConfig = {}, staticRules = []) {
   return staticRules;
 }
 
+// ── Config Info Chips (shown in dialog header) ──────────────────────────────
+function ConfigChips({ gameKey, gameConfig, timerMinutes }) {
+  if (gameKey === 'catch_popcorn') {
+    const threshold = gameConfig.winThreshold   ?? 10;
+    const totalSecs = gameConfig.durationSeconds ?? 20;
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    const durationLabel = mins > 0 ? `${mins}m${secs > 0 ? ` ${secs}s` : ''}` : `${secs}s`;
+    return (
+      <div className="flex justify-center gap-2 mt-3 flex-wrap">
+        <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
+          🍿 Catch {threshold} to win
+        </span>
+        <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
+          ⏱ {durationLabel}
+        </span>
+        {timerMinutes > 0 && (
+          <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
+            ⚠️ {timerMinutes}min limit
+          </span>
+        )}
+      </div>
+    );
+  }
+  if (gameKey === 'spin_wheel' || gameKey === 'scratch_card') {
+    return (
+      <div className="flex justify-center gap-2 mt-3 flex-wrap">
+        {timerMinutes > 0 && (
+          <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
+            ⏱ {timerMinutes}min to complete
+          </span>
+        )}
+        {gameConfig.maxPlaysPerCustomer > 0 && (
+          <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
+            🔄 {gameConfig.maxPlaysPerCustomer}x plays allowed
+          </span>
+        )}
+      </div>
+    );
+  }
+  return null;
+}
+
 // ── Game Detail Bottom Sheet Dialog ─────────────────────────────────────────
 function GameDialog({ orgGame, orgSlug, token, onClose, onStart }) {
   const game       = orgGame.gameId;
   const gameConfig = orgGame.gameConfig || {};
   const gameIcon   = GAME_ICONS[game.key] || '🎮';
   const rules      = getDynamicRules(game.key, gameConfig, game.rules || []);
-
-  const showChips = game.key === 'catch_popcorn';
-  const threshold = gameConfig.winThreshold   ?? 10;
-  const totalSecs = gameConfig.durationSeconds ?? 20;
-  const mins      = Math.floor(totalSecs / 60);
-  const secs      = totalSecs % 60;
-  const durationLabel = mins > 0 ? `${mins}m${secs > 0 ? ` ${secs}s` : ''}` : `${secs}s`;
+  const catId      = getCategory(game.key);
+  const cat        = CATEGORIES.find(c => c.id === catId);
 
   return (
     <div
@@ -46,11 +95,11 @@ function GameDialog({ orgGame, orgSlug, token, onClose, onStart }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white rounded-t-3xl shadow-2xl overflow-hidden"
+        className="w-full max-w-md bg-white rounded-t-3xl shadow-2xl"
         style={{ maxHeight: '90vh', overflowY: 'auto', animation: 'slideUp 0.25s ease' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Gradient header */}
         <div
           className="p-6 text-center relative"
           style={{ background: 'linear-gradient(135deg, var(--brand-btn, #6366f1), var(--brand-btn2, #8b5cf6))' }}
@@ -59,19 +108,20 @@ function GameDialog({ orgGame, orgSlug, token, onClose, onStart }) {
             onClick={onClose}
             className="absolute top-4 right-4 w-7 h-7 rounded-full bg-white/20 text-white flex items-center justify-center text-sm font-bold"
           >✕</button>
+
+          {/* Category badge */}
+          {cat && cat.id !== 'all' && (
+            <span className="inline-block bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mb-2 uppercase tracking-wide">
+              {cat.emoji} {cat.label}
+            </span>
+          )}
+
           <div className="text-5xl mb-2">{gameIcon}</div>
           <h2 className="text-lg font-bold text-white">{game.name}</h2>
           <p className="text-white/80 text-xs mt-1">{game.shortDescription}</p>
-          {showChips && (
-            <div className="flex justify-center gap-2 mt-3">
-              <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
-                🍿 Catch {threshold} to win
-              </span>
-              <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
-                ⏱ {durationLabel}
-              </span>
-            </div>
-          )}
+
+          {/* Dynamic config chips */}
+          <ConfigChips gameKey={game.key} gameConfig={gameConfig} timerMinutes={orgGame.timerMinutes} />
         </div>
 
         <div className="p-5 space-y-4">
@@ -88,6 +138,7 @@ function GameDialog({ orgGame, orgSlug, token, onClose, onStart }) {
                       <p className="text-xs text-purple-600 font-medium">
                         {o.discountType === 'percentage' ? `${o.discountValue}% off` : `₹${o.discountValue} off`}
                       </p>
+                      {o.description && <p className="text-[10px] text-gray-400 mt-0.5">{o.description}</p>}
                     </div>
                   </div>
                 ))}
@@ -112,14 +163,7 @@ function GameDialog({ orgGame, orgSlug, token, onClose, onStart }) {
             </div>
           )}
 
-          {/* Timer */}
-          {orgGame.timerMinutes > 0 && (
-            <div className="p-3 bg-orange-50 rounded-xl text-center">
-              <p className="text-xs text-orange-600">⏱ You have <strong>{orgGame.timerMinutes} minutes</strong> to complete the game</p>
-            </div>
-          )}
-
-          {/* Login hint for guests */}
+          {/* Login hint */}
           {!token && (
             <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-center">
               <p className="text-xs text-blue-600 font-medium">🔑 You’ll be asked to verify your WhatsApp number before the game starts</p>
@@ -153,9 +197,12 @@ export default function GamesList() {
   const orgData      = useContext(OrgContext);
   const { token, customer } = useCustomerStore();
   const navigate     = useNavigate();
-  const [games, setGames]       = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [selected, setSelected] = useState(null);
+
+  const [games, setGames]         = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [selected, setSelected]   = useState(null);
+  const [search, setSearch]       = useState('');
+  const [activeCategory, setActiveCategory] = useState('all');
 
   useEffect(() => {
     if (orgData?.org?.id) {
@@ -175,11 +222,25 @@ export default function GamesList() {
     }
   };
 
+  // Filter by search + category
+  const filtered = games.filter(og => {
+    const matchSearch = !search ||
+      og.gameId?.name?.toLowerCase().includes(search.toLowerCase()) ||
+      og.gameId?.shortDescription?.toLowerCase().includes(search.toLowerCase());
+    const matchCat = activeCategory === 'all' || getCategory(og.gameId?.key) === activeCategory;
+    return matchSearch && matchCat;
+  });
+
+  // Only show categories that have at least one game
+  const availableCategories = CATEGORIES.filter(cat =>
+    cat.id === 'all' || games.some(og => getCategory(og.gameId?.key) === cat.id)
+  );
+
   return (
     <div className="max-w-md mx-auto px-4 py-6">
 
       {/* Welcome */}
-      <div className="text-center mb-6">
+      <div className="text-center mb-5">
         {customer ? (
           <div>
             <p className="text-white text-lg font-bold">Hey {customer.name}! 👋</p>
@@ -188,46 +249,89 @@ export default function GamesList() {
         ) : (
           <div>
             <p className="text-white text-xl font-bold">Play & Win! 🎉</p>
-            <p className="text-white/70 text-sm mt-1">Browse games below and tap View to see offers & rules</p>
+            <p className="text-white/70 text-sm mt-1">Browse games and tap View to see offers & rules</p>
           </div>
         )}
       </div>
 
-      {/* Top actions */}
-      <div className="flex gap-2 mb-6">
+      {/* Top action */}
+      <div className="mb-4">
         {token ? (
           <Link to={`/play/${orgSlug}/dashboard`}
-            className="flex-1 text-center py-2.5 rounded-xl font-medium text-sm bg-white/20 text-white hover:bg-white/30 transition-colors">
+            className="block text-center py-2.5 rounded-xl font-medium text-sm bg-white/20 text-white hover:bg-white/30 transition-colors">
             📊 My Rewards
           </Link>
         ) : (
           <Link to={`/play/${orgSlug}/login`}
-            className="flex-1 text-center py-2.5 rounded-xl font-semibold text-white text-sm"
+            className="block text-center py-2.5 rounded-xl font-semibold text-white text-sm"
             style={{ background: 'var(--brand-btn, #6366f1)' }}>
             🔑 Login to Play
           </Link>
         )}
       </div>
 
+      {/* Search bar */}
+      <div className="relative mb-3">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+        <input
+          type="text"
+          placeholder="Search games..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full bg-white/90 backdrop-blur-sm rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/60 shadow"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+          >✕</button>
+        )}
+      </div>
+
+      {/* Category tabs */}
+      {availableCategories.length > 1 && (
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
+          {availableCategories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                activeCategory === cat.id
+                  ? 'bg-white text-purple-700 shadow'
+                  : 'bg-white/20 text-white hover:bg-white/30'
+              }`}
+            >
+              {cat.emoji} {cat.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Game Cards */}
       {loading ? (
         <div className="text-center text-white/70 py-8">⏳ Loading games...</div>
-      ) : games.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="text-center bg-white/10 rounded-2xl p-8">
           <p className="text-white text-4xl mb-2">🎮</p>
-          <p className="text-white font-semibold">No games available yet</p>
-          <p className="text-white/60 text-sm mt-1">Check back soon!</p>
+          <p className="text-white font-semibold">
+            {search ? `No games matching "${search}"` : 'No games available yet'}
+          </p>
+          <p className="text-white/60 text-sm mt-1">
+            {search ? 'Try a different search' : 'Check back soon!'}
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {games.map(orgGame => {
+          {filtered.map(orgGame => {
             const icon   = GAME_ICONS[orgGame.gameId?.key] || '🎮';
             const offers = orgGame.assignedOffers || [];
+            const catId  = getCategory(orgGame.gameId?.key);
+            const cat    = CATEGORIES.find(c => c.id === catId);
             return (
               <div key={orgGame._id} className="bg-white rounded-2xl p-4 shadow-lg">
                 <div className="flex items-center gap-3">
                   {/* Icon */}
-                  <div className="w-14 h-14 rounded-xl bg-purple-50 flex items-center justify-center text-3xl flex-shrink-0">
+                  <div className="w-14 h-14 rounded-xl bg-purple-50 flex items-center justify-center text-3xl flex-shrink-0 relative">
                     {orgGame.gameId?.imageUrl
                       ? <img src={orgGame.gameId.imageUrl} className="w-full h-full object-cover rounded-xl" alt="" />
                       : icon}
@@ -235,7 +339,14 @@ export default function GamesList() {
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-gray-900 text-sm">{orgGame.gameId?.name}</h3>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h3 className="font-bold text-gray-900 text-sm">{orgGame.gameId?.name}</h3>
+                      {cat && cat.id !== 'all' && (
+                        <span className="text-[9px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                          {cat.emoji} {cat.label}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 mt-0.5 truncate">{orgGame.gameId?.shortDescription}</p>
                     {offers.length > 0 && (
                       <div className="flex gap-1 mt-1.5 flex-wrap">
@@ -251,10 +362,7 @@ export default function GamesList() {
                     )}
                   </div>
 
-                  {/* Card button:
-                      - Guest  → "View"       (outline) opens dialog
-                      - LoggedIn → "▶ Play"   (filled)  goes directly to /start
-                  */}
+                  {/* Button */}
                   {token ? (
                     <button
                       onClick={() => navigate(`/play/${orgSlug}/start/${orgGame._id}`)}
@@ -276,7 +384,7 @@ export default function GamesList() {
         </div>
       )}
 
-      {/* Game Detail Dialog (guests only, but keeps working if somehow opened while logged in) */}
+      {/* Game Detail Dialog */}
       {selected && (
         <GameDialog
           orgGame={selected}
