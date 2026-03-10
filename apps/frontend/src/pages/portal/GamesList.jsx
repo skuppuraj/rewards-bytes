@@ -32,21 +32,19 @@ function GameDialog({ orgGame, orgSlug, token, onClose, onStart }) {
   const gameIcon   = GAME_ICONS[game.key] || '🎮';
   const rules      = getDynamicRules(game.key, gameConfig, game.rules || []);
 
-  const showChips  = game.key === 'catch_popcorn';
-  const threshold  = gameConfig.winThreshold   ?? 10;
-  const totalSecs  = gameConfig.durationSeconds ?? 20;
-  const mins       = Math.floor(totalSecs / 60);
-  const secs       = totalSecs % 60;
+  const showChips = game.key === 'catch_popcorn';
+  const threshold = gameConfig.winThreshold   ?? 10;
+  const totalSecs = gameConfig.durationSeconds ?? 20;
+  const mins      = Math.floor(totalSecs / 60);
+  const secs      = totalSecs % 60;
   const durationLabel = mins > 0 ? `${mins}m${secs > 0 ? ` ${secs}s` : ''}` : `${secs}s`;
 
   return (
-    // Backdrop
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"
       style={{ background: 'rgba(0,0,0,0.6)' }}
       onClick={onClose}
     >
-      {/* Sheet */}
       <div
         className="w-full max-w-md bg-white rounded-t-3xl shadow-2xl overflow-hidden"
         style={{ maxHeight: '90vh', overflowY: 'auto', animation: 'slideUp 0.25s ease' }}
@@ -121,7 +119,7 @@ function GameDialog({ orgGame, orgSlug, token, onClose, onStart }) {
             </div>
           )}
 
-          {/* Login hint */}
+          {/* Login hint for guests */}
           {!token && (
             <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-center">
               <p className="text-xs text-blue-600 font-medium">🔑 You’ll be asked to verify your WhatsApp number before the game starts</p>
@@ -157,7 +155,7 @@ export default function GamesList() {
   const navigate     = useNavigate();
   const [games, setGames]       = useState([]);
   const [loading, setLoading]   = useState(true);
-  const [selected, setSelected] = useState(null); // orgGame shown in dialog
+  const [selected, setSelected] = useState(null);
 
   useEffect(() => {
     if (orgData?.org?.id) {
@@ -253,12 +251,24 @@ export default function GamesList() {
                     )}
                   </div>
 
-                  {/* View button */}
-                  <button
-                    onClick={() => setSelected(orgGame)}
-                    className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border-2 text-purple-600 border-purple-200 bg-purple-50 hover:bg-purple-100 transition-colors">
-                    View
-                  </button>
+                  {/* Card button:
+                      - Guest  → "View"       (outline) opens dialog
+                      - LoggedIn → "▶ Play"   (filled)  goes directly to /start
+                  */}
+                  {token ? (
+                    <button
+                      onClick={() => navigate(`/play/${orgSlug}/start/${orgGame._id}`)}
+                      className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold text-white"
+                      style={{ background: 'var(--brand-btn, #6366f1)' }}>
+                      {icon} Play
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setSelected(orgGame)}
+                      className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border-2 text-purple-600 border-purple-200 bg-purple-50 hover:bg-purple-100 transition-colors">
+                      View
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -266,7 +276,7 @@ export default function GamesList() {
         </div>
       )}
 
-      {/* Game Detail Dialog */}
+      {/* Game Detail Dialog (guests only, but keeps working if somehow opened while logged in) */}
       {selected && (
         <GameDialog
           orgGame={selected}
