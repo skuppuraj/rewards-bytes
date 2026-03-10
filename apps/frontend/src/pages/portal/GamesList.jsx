@@ -6,11 +6,10 @@ import { OrgContext } from './GamePortal';
 
 const GAME_ICONS = { spin_wheel: '🎡', scratch_card: '🃏', catch_popcorn: '🍿' };
 
-// Category mapping — which game keys belong to each category
 const CATEGORIES = [
-  { id: 'all',      label: 'All Games', emoji: '🎮' },
-  { id: 'arcade',   label: 'Arcade',    emoji: '🕹️',  keys: ['catch_popcorn'] },
-  { id: 'lucky',    label: 'Lucky',     emoji: '🍀',  keys: ['spin_wheel', 'scratch_card'] },
+  { id: 'all',    label: 'All Games', emoji: '🎮' },
+  { id: 'arcade', label: 'Arcade',    emoji: '🕹️', keys: ['catch_popcorn'] },
+  { id: 'lucky',  label: 'Lucky',     emoji: '🍀', keys: ['spin_wheel', 'scratch_card'] },
 ];
 
 function getCategory(gameKey) {
@@ -19,28 +18,34 @@ function getCategory(gameKey) {
 
 function getDynamicRules(gameKey, gameConfig = {}, staticRules = []) {
   if (gameKey === 'catch_popcorn') {
-    const threshold = gameConfig.winThreshold ?? 10;
-    const totalSecs = gameConfig.durationSeconds ?? 20;
+    const threshold  = gameConfig.winThreshold  ?? 10;
+    const totalSecs  = gameConfig.durationSeconds ?? 20;
+    const maxTries   = gameConfig.maxTries ?? 1;
     const mins = Math.floor(totalSecs / 60);
     const secs = totalSecs % 60;
     const durationLabel = mins > 0
       ? `${mins} min${mins > 1 ? 's' : ''}${secs > 0 ? ` ${secs} sec` : ''}`
       : `${secs} seconds`;
-    return [
+    const rules = [
       'Drag the bucket left and right to catch falling popcorn.',
       'Normal popcorn: +1 point. Golden popcorn: +3 points. Burnt popcorn: −1 point.',
       `Catch at least ${threshold} popcorns to win a reward.`,
       `Game lasts ${durationLabel}. Speed increases as time goes on!`,
     ];
+    if (maxTries > 1) {
+      rules.push(`🔄 You get ${maxTries} attempts. If you don't win, tap "Try Again" after each round. Your best score counts!`);
+    }
+    return rules;
   }
   return staticRules;
 }
 
-// ── Config Info Chips (shown in dialog header) ──────────────────────────────
+// ── Config Info Chips ──────────────────────────────────────────────────
 function ConfigChips({ gameKey, gameConfig, timerMinutes }) {
   if (gameKey === 'catch_popcorn') {
     const threshold = gameConfig.winThreshold   ?? 10;
     const totalSecs = gameConfig.durationSeconds ?? 20;
+    const maxTries  = gameConfig.maxTries ?? 1;
     const mins = Math.floor(totalSecs / 60);
     const secs = totalSecs % 60;
     const durationLabel = mins > 0 ? `${mins}m${secs > 0 ? ` ${secs}s` : ''}` : `${secs}s`;
@@ -52,6 +57,11 @@ function ConfigChips({ gameKey, gameConfig, timerMinutes }) {
         <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
           ⏱ {durationLabel}
         </span>
+        {maxTries > 1 && (
+          <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
+            🔄 {maxTries} tries
+          </span>
+        )}
         {timerMinutes > 0 && (
           <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
             ⚠️ {timerMinutes}min limit
@@ -79,7 +89,7 @@ function ConfigChips({ gameKey, gameConfig, timerMinutes }) {
   return null;
 }
 
-// ── Game Detail Bottom Sheet Dialog ─────────────────────────────────────────
+// ── Game Detail Bottom Sheet Dialog ────────────────────────────────────────────
 function GameDialog({ orgGame, orgSlug, token, onClose, onStart }) {
   const game       = orgGame.gameId;
   const gameConfig = orgGame.gameConfig || {};
@@ -87,6 +97,7 @@ function GameDialog({ orgGame, orgSlug, token, onClose, onStart }) {
   const rules      = getDynamicRules(game.key, gameConfig, game.rules || []);
   const catId      = getCategory(game.key);
   const cat        = CATEGORIES.find(c => c.id === catId);
+  const maxTries   = gameConfig.maxTries ?? 1;
 
   return (
     <div
@@ -108,23 +119,33 @@ function GameDialog({ orgGame, orgSlug, token, onClose, onStart }) {
             onClick={onClose}
             className="absolute top-4 right-4 w-7 h-7 rounded-full bg-white/20 text-white flex items-center justify-center text-sm font-bold"
           >✕</button>
-
-          {/* Category badge */}
           {cat && cat.id !== 'all' && (
             <span className="inline-block bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mb-2 uppercase tracking-wide">
               {cat.emoji} {cat.label}
             </span>
           )}
-
           <div className="text-5xl mb-2">{gameIcon}</div>
           <h2 className="text-lg font-bold text-white">{game.name}</h2>
           <p className="text-white/80 text-xs mt-1">{game.shortDescription}</p>
-
-          {/* Dynamic config chips */}
           <ConfigChips gameKey={game.key} gameConfig={gameConfig} timerMinutes={orgGame.timerMinutes} />
         </div>
 
         <div className="p-5 space-y-4">
+
+          {/* Try Again notice — prominent banner when enabled */}
+          {game.key === 'catch_popcorn' && maxTries > 1 && (
+            <div className="flex items-start gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
+              <span className="text-xl flex-shrink-0">🔄</span>
+              <div>
+                <p className="text-sm font-bold text-green-800">You get {maxTries} attempts!</p>
+                <p className="text-xs text-green-600 mt-0.5">
+                  If you don't win in one try, tap <strong>"Try Again"</strong> on the game-over screen.
+                  Your <strong>best score</strong> across all attempts is what counts for rewards.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Rewards */}
           {orgGame.assignedOffers?.length > 0 && (
             <div>
@@ -166,7 +187,7 @@ function GameDialog({ orgGame, orgSlug, token, onClose, onStart }) {
           {/* Login hint */}
           {!token && (
             <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-center">
-              <p className="text-xs text-blue-600 font-medium">🔑 You’ll be asked to verify your WhatsApp number before the game starts</p>
+              <p className="text-xs text-blue-600 font-medium">🔑 You'll be asked to verify your WhatsApp number before the game starts</p>
             </div>
           )}
 
@@ -191,7 +212,7 @@ function GameDialog({ orgGame, orgSlug, token, onClose, onStart }) {
   );
 }
 
-// ── Main Games List ──────────────────────────────────────────────────────────
+// ── Main Games List ─────────────────────────────────────────────────────────────────
 export default function GamesList() {
   const { orgSlug }  = useParams();
   const orgData      = useContext(OrgContext);
@@ -214,15 +235,12 @@ export default function GamesList() {
 
   const handleStartFromDialog = (orgGame) => {
     if (!token) {
-      navigate(`/play/${orgSlug}/login`, {
-        state: { returnTo: `/play/${orgSlug}/start/${orgGame._id}` }
-      });
+      navigate(`/play/${orgSlug}/login`, { state: { returnTo: `/play/${orgSlug}/start/${orgGame._id}` } });
     } else {
       navigate(`/play/${orgSlug}/start/${orgGame._id}`);
     }
   };
 
-  // Filter by search + category
   const filtered = games.filter(og => {
     const matchSearch = !search ||
       og.gameId?.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -231,14 +249,12 @@ export default function GamesList() {
     return matchSearch && matchCat;
   });
 
-  // Only show categories that have at least one game
   const availableCategories = CATEGORIES.filter(cat =>
     cat.id === 'all' || games.some(og => getCategory(og.gameId?.key) === cat.id)
   );
 
   return (
     <div className="max-w-md mx-auto px-4 py-6">
-
       {/* Welcome */}
       <div className="text-center mb-5">
         {customer ? (
@@ -270,21 +286,16 @@ export default function GamesList() {
         )}
       </div>
 
-      {/* Search bar */}
+      {/* Search */}
       <div className="relative mb-3">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-        <input
-          type="text"
-          placeholder="Search games..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
+        <input type="text" placeholder="Search games..."
+          value={search} onChange={e => setSearch(e.target.value)}
           className="w-full bg-white/90 backdrop-blur-sm rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/60 shadow"
         />
         {search && (
-          <button
-            onClick={() => setSearch('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
-          >✕</button>
+          <button onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
         )}
       </div>
 
@@ -292,15 +303,10 @@ export default function GamesList() {
       {availableCategories.length > 1 && (
         <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
           {availableCategories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
+            <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
               className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                activeCategory === cat.id
-                  ? 'bg-white text-purple-700 shadow'
-                  : 'bg-white/20 text-white hover:bg-white/30'
-              }`}
-            >
+                activeCategory === cat.id ? 'bg-white text-purple-700 shadow' : 'bg-white/20 text-white hover:bg-white/30'
+              }`}>
               {cat.emoji} {cat.label}
             </button>
           ))}
@@ -313,12 +319,8 @@ export default function GamesList() {
       ) : filtered.length === 0 ? (
         <div className="text-center bg-white/10 rounded-2xl p-8">
           <p className="text-white text-4xl mb-2">🎮</p>
-          <p className="text-white font-semibold">
-            {search ? `No games matching "${search}"` : 'No games available yet'}
-          </p>
-          <p className="text-white/60 text-sm mt-1">
-            {search ? 'Try a different search' : 'Check back soon!'}
-          </p>
+          <p className="text-white font-semibold">{search ? `No games matching "${search}"` : 'No games available yet'}</p>
+          <p className="text-white/60 text-sm mt-1">{search ? 'Try a different search' : 'Check back soon!'}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -327,23 +329,27 @@ export default function GamesList() {
             const offers = orgGame.assignedOffers || [];
             const catId  = getCategory(orgGame.gameId?.key);
             const cat    = CATEGORIES.find(c => c.id === catId);
+            const maxTries = orgGame.gameConfig?.maxTries ?? 1;
             return (
               <div key={orgGame._id} className="bg-white rounded-2xl p-4 shadow-lg">
                 <div className="flex items-center gap-3">
-                  {/* Icon */}
-                  <div className="w-14 h-14 rounded-xl bg-purple-50 flex items-center justify-center text-3xl flex-shrink-0 relative">
+                  <div className="w-14 h-14 rounded-xl bg-purple-50 flex items-center justify-center text-3xl flex-shrink-0">
                     {orgGame.gameId?.imageUrl
                       ? <img src={orgGame.gameId.imageUrl} className="w-full h-full object-cover rounded-xl" alt="" />
                       : icon}
                   </div>
-
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <h3 className="font-bold text-gray-900 text-sm">{orgGame.gameId?.name}</h3>
                       {cat && cat.id !== 'all' && (
                         <span className="text-[9px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">
                           {cat.emoji} {cat.label}
+                        </span>
+                      )}
+                      {/* Try Again badge on game card */}
+                      {maxTries > 1 && (
+                        <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold">
+                          🔄 {maxTries} tries
                         </span>
                       )}
                     </div>
@@ -355,24 +361,18 @@ export default function GamesList() {
                             {o.discountType === 'percentage' ? `${o.discountValue}% off` : `₹${o.discountValue} off`}
                           </span>
                         ))}
-                        {offers.length > 2 && (
-                          <span className="text-[10px] text-gray-400">+{offers.length - 2} more</span>
-                        )}
+                        {offers.length > 2 && <span className="text-[10px] text-gray-400">+{offers.length - 2} more</span>}
                       </div>
                     )}
                   </div>
-
-                  {/* Button */}
                   {token ? (
-                    <button
-                      onClick={() => navigate(`/play/${orgSlug}/start/${orgGame._id}`)}
+                    <button onClick={() => navigate(`/play/${orgSlug}/start/${orgGame._id}`)}
                       className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold text-white"
                       style={{ background: 'var(--brand-btn, #6366f1)' }}>
                       {icon} Play
                     </button>
                   ) : (
-                    <button
-                      onClick={() => setSelected(orgGame)}
+                    <button onClick={() => setSelected(orgGame)}
                       className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border-2 text-purple-600 border-purple-200 bg-purple-50 hover:bg-purple-100 transition-colors">
                       View
                     </button>
@@ -387,9 +387,7 @@ export default function GamesList() {
       {/* Game Detail Dialog */}
       {selected && (
         <GameDialog
-          orgGame={selected}
-          orgSlug={orgSlug}
-          token={token}
+          orgGame={selected} orgSlug={orgSlug} token={token}
           onClose={() => setSelected(null)}
           onStart={() => { setSelected(null); handleStartFromDialog(selected); }}
         />

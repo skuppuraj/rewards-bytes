@@ -35,6 +35,7 @@ function splitDuration(gameConfig = {}) {
   return { durationMins: Math.floor(total / 60), durationSecs: total % 60 };
 }
 
+// ── Extra Config Fields for configure modal ─────────────────────────────────────────
 function GameExtraConfig({ gameKey, form, setForm }) {
   if (gameKey === 'catch_popcorn') {
     const mins = form.gameConfig?.durationMins ?? 0;
@@ -42,8 +43,6 @@ function GameExtraConfig({ gameKey, form, setForm }) {
     return (
       <div className="space-y-4 pt-2 border-t border-gray-100">
         <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">🍿 Catch Popcorn Settings</p>
-
-        {/* Win threshold */}
         <div>
           <label className="label">Popcorn to Catch to Win</label>
           <input className="input" type="number" min="1" max="100"
@@ -51,8 +50,6 @@ function GameExtraConfig({ gameKey, form, setForm }) {
             onChange={e => setForm(p => ({ ...p, gameConfig: { ...p.gameConfig, winThreshold: parseInt(e.target.value) || 1 } }))}
           />
         </div>
-
-        {/* Duration */}
         <div>
           <label className="label">Game Duration</label>
           <div className="flex gap-2">
@@ -71,8 +68,7 @@ function GameExtraConfig({ gameKey, form, setForm }) {
           </div>
           <p className="text-xs text-gray-400 mt-1">Total: <strong>{mins*60+secs}s</strong></p>
         </div>
-
-        {/* ─── Try Again ────────────────────────────────────────────── */}
+        {/* Try Again */}
         <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>
@@ -87,7 +83,6 @@ function GameExtraConfig({ gameKey, form, setForm }) {
               <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-brand peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all" />
             </label>
           </div>
-
           {(form.gameConfig?.maxTries ?? 1) > 1 && (
             <div>
               <label className="text-xs text-gray-600 font-semibold mb-1 block">Number of Attempts</label>
@@ -99,13 +94,11 @@ function GameExtraConfig({ gameKey, form, setForm }) {
                 <span className="text-xs text-gray-400">max 10 attempts</span>
               </div>
               <p className="text-xs text-gray-400 mt-1.5">
-                💡 Player can retry up to <strong className="text-purple-700">{form.gameConfig?.maxTries ?? 2} times</strong> if they lose.
-                Best score wins.
+                💡 Player can retry up to <strong className="text-purple-700">{form.gameConfig?.maxTries ?? 2} times</strong> if they lose. Best score wins.
               </p>
             </div>
           )}
         </div>
-        {/* ──────────────────────────────────────────────────────────── */}
       </div>
     );
   }
@@ -134,6 +127,74 @@ function GameExtraConfig({ gameKey, form, setForm }) {
     </div>
   );
   return null;
+}
+
+// ── Game Info Panel (shown inside Info modal) ───────────────────────────────────────
+function GameInfoContent({ game }) {
+  const gc       = game.orgConfig?.gameConfig || {};
+  const maxTries = gc.maxTries ?? 1;
+  const { durationMins, durationSecs } = splitDuration(gc);
+  const totalSecs = durationMins * 60 + durationSecs;
+  const durationLabel = durationMins > 0
+    ? `${durationMins}m${durationSecs > 0 ? ` ${durationSecs}s` : ''}`
+    : `${durationSecs}s`;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-600">{game.fullDescription || game.shortDescription}</p>
+
+      {/* Catch popcorn live config summary */}
+      {game.key === 'catch_popcorn' && game.orgConfig && (
+        <div className="rounded-xl bg-purple-50 border border-purple-100 p-4 space-y-3">
+          <p className="text-xs font-bold text-purple-700 uppercase tracking-wide">⚙️ Current Configuration</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white rounded-lg p-2 text-center">
+              <p className="text-lg font-black text-purple-700">{gc.winThreshold ?? 10}</p>
+              <p className="text-[10px] text-gray-400">popcorns to win</p>
+            </div>
+            <div className="bg-white rounded-lg p-2 text-center">
+              <p className="text-lg font-black text-purple-700">{durationLabel}</p>
+              <p className="text-[10px] text-gray-400">game duration</p>
+            </div>
+            <div className="bg-white rounded-lg p-2 text-center col-span-1">
+              <p className="text-lg font-black text-green-700">{maxTries}</p>
+              <p className="text-[10px] text-gray-400">max attempts</p>
+            </div>
+            {maxTries > 1 && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-center">
+                <p className="text-sm font-bold text-green-700">🔄 Try Again ON</p>
+                <p className="text-[10px] text-gray-400">best score counts</p>
+              </div>
+            )}
+          </div>
+          {/* How try again works for the admin */}
+          {maxTries > 1 && (
+            <div className="bg-white rounded-lg p-3 border border-green-100 text-xs text-gray-600 space-y-1">
+              <p className="font-semibold text-green-700">🔄 How Try Again works for customers:</p>
+              <p>• After losing, a <strong>"Try Again"</strong> button appears on the game-over screen.</p>
+              <p>• Customers can retry up to <strong>{maxTries} times total</strong>.</p>
+              <p>• If they win on any attempt, the result is saved immediately — no more retries.</p>
+              <p>• If all attempts are used without winning, the best score is recorded.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Static rules */}
+      {game.rules?.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Rules</p>
+          <ul className="space-y-1.5">
+            {game.rules.map((r, i) => (
+              <li key={i} className="text-sm text-gray-600 flex gap-2">
+                <span className="text-brand font-bold flex-shrink-0">{i + 1}.</span>{r}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, mode = 'yours' }) {
@@ -191,9 +252,7 @@ function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, mode = 'your
       )}
       <div className="flex items-center justify-between mt-auto pt-2">
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-          !isAdded ? 'bg-gray-100 text-gray-400'
-          : enabled ? 'badge-active'
-          : 'bg-gray-100 text-gray-500'
+          !isAdded ? 'bg-gray-100 text-gray-400' : enabled ? 'badge-active' : 'bg-gray-100 text-gray-500'
         }`}>
           {!isAdded ? 'Not added' : enabled ? 'Active' : 'Disabled'}
         </span>
@@ -271,8 +330,7 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
             onClick={() => setNewLaunch(p => !p)}
             className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-all whitespace-nowrap ${
               newLaunch ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-600 border-gray-200 hover:border-green-500 hover:text-green-600'
-            }`}
-          >
+            }`}>
             🚀 New Launch
           </button>
         </div>
@@ -401,8 +459,7 @@ export default function GamesPage() {
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
               tab === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
+            }`}>
             {t.label}
             {t.badge !== null && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
@@ -447,20 +504,9 @@ export default function GamesPage() {
         </div>
       </Modal>
 
-      {/* Info Modal */}
+      {/* Info Modal — now uses GameInfoContent */}
       <Modal open={!!infoGame} onClose={() => setInfoGame(null)} title={infoGame?.name} size="md">
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600">{infoGame?.fullDescription || infoGame?.shortDescription}</p>
-          {infoGame?.rules?.length > 0 && (
-            <ul className="space-y-1.5">
-              {infoGame.rules.map((r, i) => (
-                <li key={i} className="text-sm text-gray-600 flex gap-2">
-                  <span className="text-brand font-bold flex-shrink-0">{i + 1}.</span>{r}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {infoGame && <GameInfoContent game={infoGame} />}
       </Modal>
 
       {/* Preview Modal */}

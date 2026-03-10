@@ -4,31 +4,35 @@ import toast from 'react-hot-toast';
 import publicApi from '../../lib/publicApi';
 import { OrgContext } from './GamePortal';
 
-// Build dynamic rules based on live gameConfig values
 function getDynamicRules(gameKey, gameConfig = {}, staticRules = []) {
   if (gameKey === 'catch_popcorn') {
-    const threshold = gameConfig.winThreshold ?? 10;
+    const threshold = gameConfig.winThreshold  ?? 10;
     const totalSecs = gameConfig.durationSeconds ?? 20;
+    const maxTries  = gameConfig.maxTries ?? 1;
     const mins = Math.floor(totalSecs / 60);
     const secs = totalSecs % 60;
     const durationLabel = mins > 0
       ? `${mins} min${mins > 1 ? 's' : ''}${secs > 0 ? ` ${secs} sec` : ''}`
       : `${secs} seconds`;
-    return [
+    const rules = [
       'Drag the bucket left and right to catch falling popcorn.',
       'Normal popcorn: +1 point. Golden popcorn: +3 points. Burnt popcorn: -1 point.',
       `Catch at least ${threshold} popcorns to win a reward.`,
       `Game lasts ${durationLabel}. Speed increases as time goes on!`,
     ];
+    if (maxTries > 1) {
+      rules.push(`🔄 You get ${maxTries} attempts. Tap "Try Again" if you don't win. Best score counts!`);
+    }
+    return rules;
   }
   return staticRules;
 }
 
 export default function GameStart() {
   const { orgSlug, orgGameId } = useParams();
-  const orgData = useContext(OrgContext);
-  const navigate = useNavigate();
-  const [orgGame, setOrgGame] = useState(null);
+  const orgData   = useContext(OrgContext);
+  const navigate  = useNavigate();
+  const [orgGame, setOrgGame]   = useState(null);
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
@@ -43,8 +47,8 @@ export default function GameStart() {
     try {
       const { data: session } = await publicApi.post('/game/start', { orgGameId });
       const key = orgGame?.gameId?.key;
-      if (key === 'spin_wheel')       navigate(`/play/${orgSlug}/play/spin/${session._id}`);
-      else if (key === 'scratch_card')  navigate(`/play/${orgSlug}/play/scratch/${session._id}`);
+      if (key === 'spin_wheel')        navigate(`/play/${orgSlug}/play/spin/${session._id}`);
+      else if (key === 'scratch_card') navigate(`/play/${orgSlug}/play/scratch/${session._id}`);
       else if (key === 'catch_popcorn') navigate(`/play/${orgSlug}/play/popcorn/${session._id}`);
       else toast.error('Game type not supported yet');
     } catch (err) {
@@ -55,44 +59,63 @@ export default function GameStart() {
 
   if (!orgGame) return <div className="text-center text-white py-12">⏳ Loading...</div>;
 
-  const game    = orgGame.gameId;
+  const game       = orgGame.gameId;
   const gameConfig = orgGame.gameConfig || {};
   const gameIcon   = { spin_wheel: '🎡', scratch_card: '🃏', catch_popcorn: '🍿' }[game.key] || '🎮';
   const rules      = getDynamicRules(game.key, gameConfig, game.rules || []);
+  const maxTries   = gameConfig.maxTries ?? 1;
 
-  // Summary chips for catch_popcorn
-  const showConfigChips = game.key === 'catch_popcorn';
-  const threshold  = gameConfig.winThreshold ?? 10;
-  const totalSecs  = gameConfig.durationSeconds ?? 20;
-  const mins       = Math.floor(totalSecs / 60);
-  const secs       = totalSecs % 60;
-  const durationLabel = mins > 0
-    ? `${mins}m ${secs > 0 ? secs + 's' : ''}`
-    : `${secs}s`;
+  const threshold     = gameConfig.winThreshold   ?? 10;
+  const totalSecs     = gameConfig.durationSeconds ?? 20;
+  const mins          = Math.floor(totalSecs / 60);
+  const secs          = totalSecs % 60;
+  const durationLabel = mins > 0 ? `${mins}m${secs > 0 ? ` ${secs}s` : ''}` : `${secs}s`;
 
   return (
     <div className="max-w-md mx-auto px-4 py-6">
       <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+
         {/* Header */}
-        <div className="p-6 text-center" style={{ background: 'linear-gradient(135deg, var(--brand-btn, #6366f1), var(--brand-btn2, #8b5cf6))' }}>
+        <div className="p-6 text-center"
+          style={{ background: 'linear-gradient(135deg, var(--brand-btn, #6366f1), var(--brand-btn2, #8b5cf6))' }}>
           <div className="text-5xl mb-3">{gameIcon}</div>
           <h2 className="text-xl font-bold text-white">{game.name}</h2>
           <p className="text-white/80 text-sm mt-1">{game.shortDescription}</p>
 
           {/* Config chips */}
-          {showConfigChips && (
-            <div className="flex justify-center gap-2 mt-3">
+          {game.key === 'catch_popcorn' && (
+            <div className="flex justify-center gap-2 mt-3 flex-wrap">
               <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
                 🍿 Catch {threshold} to win
               </span>
               <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
                 ⏱ {durationLabel}
               </span>
+              {maxTries > 1 && (
+                <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
+                  🔄 {maxTries} tries
+                </span>
+              )}
             </div>
           )}
         </div>
 
         <div className="p-5">
+
+          {/* Try Again notice — prominent when enabled */}
+          {game.key === 'catch_popcorn' && maxTries > 1 && (
+            <div className="flex items-start gap-3 p-3 bg-green-50 border border-green-200 rounded-xl mb-4">
+              <span className="text-xl flex-shrink-0">🔄</span>
+              <div>
+                <p className="text-sm font-bold text-green-800">You get {maxTries} attempts!</p>
+                <p className="text-xs text-green-600 mt-0.5">
+                  Didn't win? Tap <strong>"Try Again"</strong> on the game-over screen to play another round.
+                  Your <strong>best score</strong> across all attempts is what counts.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Rewards Preview */}
           {orgGame.assignedOffers?.length > 0 && (
             <div className="mb-4">
@@ -115,7 +138,7 @@ export default function GameStart() {
 
           {/* Dynamic Rules */}
           {rules.length > 0 && (
-            <div className="mb-5">
+            <div className="mb-4">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">📝 Game Rules</h3>
               <ul className="space-y-1.5">
                 {rules.map((r, i) => (
