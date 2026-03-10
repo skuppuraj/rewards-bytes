@@ -8,10 +8,12 @@ const RazorpayConfig = require('../models/RazorpayConfig');
 
 async function getRazorpayInstance() {
   const cfg = await RazorpayConfig.findOne();
-  if (!cfg) throw new Error('Razorpay not configured');
+  console.log('[Razorpay] config found:', !!cfg, '| mode:', cfg?.mode);
+  if (!cfg) throw new Error('Razorpay not configured — please save keys in Super Admin');
   const keyId     = cfg.mode === 'live' ? cfg.liveKeyId     : cfg.testKeyId;
   const keySecret = cfg.mode === 'live' ? cfg.liveKeySecret : cfg.testKeySecret;
-  if (!keyId || !keySecret) throw new Error('Razorpay keys not set for ' + cfg.mode + ' mode');
+  console.log('[Razorpay] keyId present:', !!keyId, '| secret present:', !!keySecret);
+  if (!keyId || !keySecret) throw new Error(`Razorpay ${cfg.mode} keys not set — go to Super Admin > Razorpay`);
   return { instance: new Razorpay({ key_id: keyId, key_secret: keySecret }), keyId };
 }
 
@@ -30,30 +32,25 @@ router.get('/active', auth, async (req, res) => {
 router.post('/create-order', auth, async (req, res) => {
   try {
     const { planId } = req.body;
+    console.log('[create-order] planId:', planId, '| orgId:', req.orgId);
+
     const plan = await Plan.findById(planId);
+    console.log('[create-order] plan:', plan?.name, '| price:', plan?.price, '| isTrial:', plan?.isTrial);
+
     if (!plan)          return res.status(404).json({ error: 'Plan not found' });
     if (!plan.isActive) return res.status(400).json({ error: 'Plan is not available' });
 
-    // ── FREE / TRIAL activation (only when price is 0) ───────────────────────────
+    // FREE / TRIAL activation (only when price is 0)
     if (plan.price === 0) {
-      // Block if already has active paid sub
       const existingPaid = await Subscription.findOne({
-        organizationId: req.orgId,
-        status: 'active',
-        isTrial: false,
+        organizationId: req.orgId, status: 'active', isTrial: false,
       });
-      if (existingPaid) {
-        return res.status(400).json({ error: 'You already have an active paid plan.' });
-      }
-      // Block if trial already used for this plan
+      if (existingPaid) return res.status(400).json({ error: 'You already have an active paid plan.' });
+
       const usedTrial = await Subscription.findOne({
-        organizationId: req.orgId,
-        planId: plan._id,
-        isTrial: true,
+        organizationId: req.orgId, planId: plan._id, isTrial: true,
       });
-      if (usedTrial) {
-        return res.status(400).json({ error: 'You have already used the trial for this plan.' });
-      }
+      if (usedTrial) return res.status(400).json({ error: 'You have already used the trial for this plan.' });
 
       const start   = new Date();
       const expires = new Date(start.getTime() + (plan.trialDays || plan.durationDays) * 86400000);
@@ -66,13 +63,15 @@ router.post('/create-order', auth, async (req, res) => {
       return res.json({ trial: true, subscription: sub });
     }
 
-    // ── PAID plan (price > 0) — always go through Razorpay ──────────────────────
+    // PAID plan — Razorpay order
+    console.log('[create-order] creating Razorpay order for amount:', plan.price);
     const { instance, keyId } = await getRazorpayInstance();
     const order = await instance.orders.create({
-      amount:   plan.price,  // paise
+      amount:   plan.price,
       currency: 'INR',
       receipt:  `rcpt_${req.orgId}_${Date.now()}`,
     });
+    console.log('[create-order] Razorpay order created:', order.id);
 
     await Subscription.create({
       organizationId:  req.orgId,
@@ -83,7 +82,10 @@ router.post('/create-order', auth, async (req, res) => {
     });
 
     res.json({ orderId: order.id, amount: plan.price, currency: 'INR', keyId });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('[create-order] ERROR:', err.message, err?.error || '');
+    res.status(500).json({ error: err.message, detail: err?.error?.description || '' });
+  }
 });
 
 // POST /subscriptions/verify
@@ -110,7 +112,6 @@ router.post('/verify', auth, async (req, res) => {
     const start   = new Date();
     const expires = new Date(start.getTime() + sub.planId.durationDays * 86400000);
 
-    // Expire all previous active subs (including trial)
     await Subscription.updateMany(
       { organizationId: sub.organizationId, status: 'active' },
       { status: 'expired' }
@@ -118,13 +119,16 @@ router.post('/verify', auth, async (req, res) => {
 
     sub.razorpayPaymentId = razorpay_payment_id;
     sub.status    = 'active';
-    sub.isTrial   = false;   // always mark as paid on verify
+    sub.isTrial   = false;
     sub.startDate = start;
     sub.expiresAt = expires;
     await sub.save();
 
     res.json({ success: true, expiresAt: expires });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('[verify] ERROR:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
