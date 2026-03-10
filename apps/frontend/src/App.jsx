@@ -13,6 +13,7 @@ import CustomersPage from './pages/customers/CustomersPage';
 import CouponsPage from './pages/coupons/CouponsPage';
 import OrgSettingsPage from './pages/settings/OrgSettingsPage';
 import StaffPage from './pages/staff/StaffPage';
+import ReviewsPage from './pages/reviews/ReviewsPage';
 // Customer portal
 import GamePortal from './pages/portal/GamePortal';
 import PortalLogin from './pages/portal/PortalLogin';
@@ -41,14 +42,15 @@ export default function App() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<PrivateRoute adminOnly><Dashboard /></PrivateRoute>} />
-          <Route path="games" element={<PrivateRoute adminOnly><GamesPage /></PrivateRoute>} />
-          <Route path="offers" element={<PrivateRoute adminOnly><OffersPage /></PrivateRoute>} />
+          <Route path="dashboard"    element={<PrivateRoute adminOnly><Dashboard /></PrivateRoute>} />
+          <Route path="games"        element={<PrivateRoute adminOnly><GamesPage /></PrivateRoute>} />
+          <Route path="offers"       element={<PrivateRoute adminOnly><OffersPage /></PrivateRoute>} />
           <Route path="game-history" element={<PrivateRoute adminOnly><GameHistoryPage /></PrivateRoute>} />
-          <Route path="customers" element={<PrivateRoute adminOnly><CustomersPage /></PrivateRoute>} />
-          <Route path="coupons" element={<CouponsPage />} />
-          <Route path="settings" element={<PrivateRoute adminOnly><OrgSettingsPage /></PrivateRoute>} />
-          <Route path="staff" element={<PrivateRoute adminOnly><StaffPage /></PrivateRoute>} />
+          <Route path="customers"    element={<PrivateRoute adminOnly><CustomersPage /></PrivateRoute>} />
+          <Route path="coupons"      element={<CouponsPage />} />
+          <Route path="reviews"      element={<PrivateRoute adminOnly><ReviewsPage /></PrivateRoute>} />
+          <Route path="settings"     element={<PrivateRoute adminOnly><OrgSettingsPage /></PrivateRoute>} />
+          <Route path="staff"        element={<PrivateRoute adminOnly><StaffPage /></PrivateRoute>} />
         </Route>
         {/* Customer Portal */}
         <Route path="/play/:orgSlug" element={<GamePortal />}>
