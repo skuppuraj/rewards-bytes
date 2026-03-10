@@ -16,8 +16,13 @@ import CouponsPage from './pages/coupons/CouponsPage';
 import OrgSettingsPage from './pages/settings/OrgSettingsPage';
 import StaffPage from './pages/staff/StaffPage';
 import ReviewsPage from './pages/reviews/ReviewsPage';
+import AccountPage from './pages/account/AccountPage';
+// Super Admin
 import SuperAdminLogin from './pages/superadmin/SuperAdminLogin';
+import SuperAdminLayout from './pages/superadmin/SuperAdminLayout';
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard';
+import PlansPage from './pages/superadmin/PlansPage';
+import RazorpayConfigPage from './pages/superadmin/RazorpayConfigPage';
 // Customer portal
 import GamePortal from './pages/portal/GamePortal';
 import PortalLogin from './pages/portal/PortalLogin';
@@ -53,8 +58,13 @@ export default function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
 
         {/* Super Admin */}
-        <Route path="/superadmin/login"     element={<SuperAdminLogin />} />
-        <Route path="/superadmin/dashboard" element={<SuperAdminRoute><SuperAdminDashboard /></SuperAdminRoute>} />
+        <Route path="/superadmin/login" element={<SuperAdminLogin />} />
+        <Route path="/superadmin" element={<SuperAdminRoute><SuperAdminLayout /></SuperAdminRoute>}>
+          <Route index element={<Navigate to="/superadmin/dashboard" replace />} />
+          <Route path="dashboard" element={<SuperAdminDashboard />} />
+          <Route path="plans"     element={<PlansPage />} />
+          <Route path="razorpay"  element={<RazorpayConfigPage />} />
+        </Route>
 
         {/* Org Admin */}
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
@@ -67,7 +77,8 @@ export default function App() {
           <Route path="coupons"      element={<CouponsPage />} />
           <Route path="reviews"      element={<PrivateRoute adminOnly><ReviewsPage /></PrivateRoute>} />
           <Route path="settings"     element={<PrivateRoute adminOnly><OrgSettingsPage /></PrivateRoute>} />
-          <Route path="staff"        element={<PrivateRoute adminOnly><StaffPage />  </PrivateRoute>} />
+          <Route path="staff"        element={<PrivateRoute adminOnly><StaffPage /></PrivateRoute>} />
+          <Route path="account"      element={<PrivateRoute adminOnly><AccountPage /></PrivateRoute>} />
         </Route>
 
         {/* Customer Portal */}
