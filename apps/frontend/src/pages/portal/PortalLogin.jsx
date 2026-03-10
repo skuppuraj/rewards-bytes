@@ -1,99 +1,144 @@
-import React, { useState, useContext } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import publicApi from '../../lib/publicApi';
 import { useCustomerStore } from '../../store/customerStore';
-import { OrgContext } from './GamePortal';
 
 export default function PortalLogin() {
-  const { orgSlug } = useParams();
-  const orgData = useContext(OrgContext);
+  const { orgSlug }       = useParams();
+  const navigate          = useNavigate();
+  const location          = useLocation();
   const { setCustomerAuth } = useCustomerStore();
-  const navigate = useNavigate();
 
-  const [step, setStep] = useState('form'); // form | otp
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [consent, setConsent] = useState(false);
+  // Where to go after login — default to game list
+  const returnTo = location.state?.returnTo || `/play/${orgSlug}`;
+
+  const [step, setStep]     = useState('phone'); // phone | otp | name
+  const [phone, setPhone]   = useState('');
+  const [otp, setOtp]       = useState('');
+  const [name, setName]     = useState('');
+  const [isNew, setIsNew]   = useState(false);
   const [loading, setLoading] = useState(false);
+  const [orgId, setOrgId]   = useState(null);
 
-  const handleSendOtp = async (e) => {
-    e.preventDefault();
-    if (!phone || phone.length < 10) return toast.error('Enter a valid phone number');
+  const handleSendOtp = async () => {
+    if (!phone || phone.length < 10) { toast.error('Enter a valid phone number'); return; }
     setLoading(true);
     try {
-      await publicApi.post('/otp/send', { phone: `91${phone}` });
-      toast.success('OTP sent to your WhatsApp!');
+      // Get orgId from context
+      const orgRes = await publicApi.get(`/org/${orgSlug}`);
+      setOrgId(orgRes.data.org.id);
+      await publicApi.post('/otp/send', { phone });
+      toast.success('OTP sent!');
       setStep('otp');
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to send OTP');
-    } finally { setLoading(false); }
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed to send OTP'); }
+    finally { setLoading(false); }
   };
 
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
+  const handleVerifyOtp = async () => {
+    if (!otp || otp.length < 4) { toast.error('Enter the OTP'); return; }
     setLoading(true);
     try {
-      const { data } = await publicApi.post('/otp/verify', {
-        phone: `91${phone}`, otp, name,
-        orgId: orgData.org.id,
-        marketingConsent: consent
-      });
-      setCustomerAuth(data.token, data.customer, orgData.org, orgData.settings);
-      toast.success(`Welcome, ${data.customer.name}! 🎉`);
-      navigate(`/play/${orgSlug}`);
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Invalid OTP');
-    } finally { setLoading(false); }
+      const res = await publicApi.post('/otp/verify', { phone, otp, orgId });
+      if (res.data.customer.name === phone) {
+        // New customer — ask for name
+        setIsNew(true);
+        setStep('name');
+        setLoading(false);
+        return;
+      }
+      setCustomerAuth(res.data.token, res.data.customer, null, null);
+      toast.success(`Welcome back, ${res.data.customer.name}!`);
+      navigate(returnTo, { replace: true });
+    } catch (err) { toast.error(err.response?.data?.error || 'Invalid OTP'); }
+    finally { setLoading(false); }
+  };
+
+  const handleSetName = async () => {
+    if (!name.trim()) { toast.error('Please enter your name'); return; }
+    setLoading(true);
+    try {
+      const res = await publicApi.post('/otp/verify', { phone, otp, orgId, name: name.trim() });
+      setCustomerAuth(res.data.token, res.data.customer, null, null);
+      toast.success(`Welcome, ${res.data.customer.name}!`);
+      navigate(returnTo, { replace: true });
+    } catch (err) { toast.error(err.response?.data?.error || 'Error'); }
+    finally { setLoading(false); }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-60px)] p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+    <div className="max-w-md mx-auto px-4 py-8">
+      <div className="bg-white rounded-2xl shadow-2xl p-6">
         <div className="text-center mb-6">
-          <div className="text-4xl mb-2">🎮</div>
-          <h2 className="text-xl font-bold text-gray-900">Join & Play!</h2>
-          <p className="text-sm text-gray-500 mt-1">Verify via WhatsApp to start winning</p>
+          <div className="text-4xl mb-2">🔑</div>
+          <h2 className="text-xl font-bold text-gray-900">Login to Play</h2>
+          <p className="text-sm text-gray-500 mt-1">Enter your phone number to continue</p>
         </div>
 
-        {step === 'form' ? (
-          <form onSubmit={handleSendOtp} className="space-y-4">
+        {step === 'phone' && (
+          <div className="space-y-4">
             <div>
-              <label className="label">Your Name</label>
-              <input className="input" placeholder="Enter your name" value={name} onChange={e => setName(e.target.value)} required />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+              <input
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                placeholder="Enter your phone number"
+                value={phone} onChange={e => setPhone(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSendOtp()}
+                type="tel" maxLength={15}
+              />
             </div>
-            <div>
-              <label className="label">WhatsApp Number</label>
-              <div className="flex">
-                <span className="inline-flex items-center px-3 border border-r-0 border-gray-200 rounded-l-lg bg-gray-50 text-sm text-gray-500">🇮🇳 +91</span>
-                <input className="input rounded-l-none" type="tel" placeholder="9876543210" maxLength={10} value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, ''))} required />
-              </div>
-            </div>
-            {orgData?.settings?.marketingConsentEnabled && (
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input type="checkbox" className="mt-0.5" checked={consent} onChange={e => setConsent(e.target.checked)} />
-                <span className="text-xs text-gray-500">I agree to receive promotional offers and updates from {orgData.org.name} via WhatsApp.</span>
-              </label>
-            )}
-            <button className="w-full py-3 rounded-xl font-semibold text-white text-sm" style={{background: 'var(--brand-btn, #6366f1)'}} disabled={loading}>
-              {loading ? 'Sending OTP...' : 'Send OTP on WhatsApp 💬'}
+            <button onClick={handleSendOtp} disabled={loading}
+              className="w-full py-3 rounded-xl text-white font-bold text-sm"
+              style={{ background: 'var(--brand-btn, #6366f1)' }}>
+              {loading ? 'Sending...' : 'Send OTP'}
             </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp} className="space-y-4">
-            <div className="text-center p-3 bg-green-50 rounded-xl">
-              <p className="text-sm text-green-700">💬 OTP sent to <strong>+91 {phone}</strong></p>
-            </div>
+          </div>
+        )}
+
+        {step === 'otp' && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500 text-center">OTP sent to <strong>{phone}</strong></p>
             <div>
-              <label className="label">Enter OTP</label>
-              <input className="input text-center text-2xl font-mono tracking-widest" placeholder="• • • • • •" maxLength={6} value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, ''))} required />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Enter OTP</label>
+              <input
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-center tracking-widest text-lg font-bold focus:outline-none focus:ring-2 focus:ring-purple-200"
+                placeholder="- - - -"
+                value={otp} onChange={e => setOtp(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleVerifyOtp()}
+                type="number" maxLength={6}
+              />
             </div>
-            <button className="w-full py-3 rounded-xl font-semibold text-white text-sm" style={{background: 'var(--brand-btn, #6366f1)'}} disabled={loading}>
-              {loading ? 'Verifying...' : 'Verify & Continue →'}
+            <button onClick={handleVerifyOtp} disabled={loading}
+              className="w-full py-3 rounded-xl text-white font-bold text-sm"
+              style={{ background: 'var(--brand-btn, #6366f1)' }}>
+              {loading ? 'Verifying...' : 'Verify OTP'}
             </button>
-            <button type="button" onClick={() => setStep('form')} className="w-full text-sm text-gray-500 hover:text-gray-700">← Change number</button>
-          </form>
+            <button onClick={() => setStep('phone')} className="w-full text-sm text-gray-400 hover:text-gray-600">
+              ← Change number
+            </button>
+          </div>
+        )}
+
+        {step === 'name' && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500 text-center">Welcome! What’s your name?</p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+              <input
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                placeholder="Enter your name"
+                value={name} onChange={e => setName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSetName()}
+                autoFocus
+              />
+            </div>
+            <button onClick={handleSetName} disabled={loading}
+              className="w-full py-3 rounded-xl text-white font-bold text-sm"
+              style={{ background: 'var(--brand-btn, #6366f1)' }}>
+              {loading ? 'Saving...' : "Let's Play! 🎮"}
+            </button>
+          </div>
         )}
       </div>
     </div>

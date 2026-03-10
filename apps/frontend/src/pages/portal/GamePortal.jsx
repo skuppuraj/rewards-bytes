@@ -5,16 +5,15 @@ import { useCustomerStore } from '../../store/customerStore';
 
 export const OrgContext = React.createContext(null);
 
-// Only these sub-paths require login — game list stays public
+// Only actual game-play and completion require login
+// Game list (/), login (/login), and rules/info (/start/:id) are all PUBLIC
 function isProtected(pathname, orgSlug) {
-  const base = `/play/${orgSlug}`;
-  const sub  = pathname.replace(base, '');
+  const sub = pathname.replace(`/play/${orgSlug}`, '');
   return (
-    sub.startsWith('/start/')    ||
-    sub.startsWith('/play/')     ||  // /play/spin/ /play/scratch/ /play/popcorn/
-    sub.startsWith('/complete/') ||
-    sub === '/dashboard'         ||
-    sub.startsWith('/dashboard')
+    sub.startsWith('/play/')      ||   // /play/spin/ /play/scratch/ /play/popcorn/
+    sub.startsWith('/complete/')  ||
+    sub === '/dashboard'          ||
+    sub.startsWith('/dashboard/')
   );
 }
 
@@ -40,7 +39,6 @@ export default function GamePortal() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, [orgSlug]);
 
-  // Redirect to login if hitting a protected route without a token
   useEffect(() => {
     if (!loading && isProtected(location.pathname, orgSlug) && !token) {
       navigate(`/play/${orgSlug}/login`, { replace: true });
@@ -65,7 +63,6 @@ export default function GamePortal() {
     </div>
   );
 
-  // Blank screen while redirect fires
   if (isProtected(location.pathname, orgSlug) && !token) return null;
 
   const bgStyle = orgData.settings?.backgroundImageUrl
