@@ -1,30 +1,45 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet, useParams, useNavigate } from 'react-router-dom';
+import { Outlet, useParams, useNavigate, useLocation } from 'react-router-dom';
 import publicApi from '../../lib/publicApi';
 import { useCustomerStore } from '../../store/customerStore';
 
 export const OrgContext = React.createContext(null);
 
+// Routes that require customer to be logged in
+const PROTECTED_PATHS = ['/start/', '/play/', '/complete/', '/dashboard'];
+
+function isProtected(pathname) {
+  return PROTECTED_PATHS.some(p => pathname.includes(p));
+}
+
 export default function GamePortal() {
   const { orgSlug } = useParams();
   const [orgData, setOrgData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { settings, setCustomerAuth, customer, org } = useCustomerStore();
+  const { token } = useCustomerStore();
+  const navigate   = useNavigate();
+  const location   = useLocation();
 
   useEffect(() => {
     publicApi.get(`/org/${orgSlug}`).then(r => {
       setOrgData(r.data);
-      // Apply org branding dynamically
       const s = r.data.settings;
       if (s) {
-        document.documentElement.style.setProperty('--brand-btn', s.primaryButtonColor || '#6366f1');
-        document.documentElement.style.setProperty('--brand-btn2', s.secondaryButtonColor || '#8b5cf6');
-        document.documentElement.style.setProperty('--brand-text', s.primaryTextColor || '#111827');
-        document.documentElement.style.setProperty('--brand-text2', s.secondaryTextColor || '#6b7280');
+        document.documentElement.style.setProperty('--brand-btn',   s.primaryButtonColor   || '#6366f1');
+        document.documentElement.style.setProperty('--brand-btn2',  s.secondaryButtonColor || '#8b5cf6');
+        document.documentElement.style.setProperty('--brand-text',  s.primaryTextColor     || '#111827');
+        document.documentElement.style.setProperty('--brand-text2', s.secondaryTextColor   || '#6b7280');
         if (s.fontStyle) document.body.style.fontFamily = `'${s.fontStyle}', sans-serif`;
       }
     }).catch(() => {}).finally(() => setLoading(false));
   }, [orgSlug]);
+
+  // Guard: redirect to login if customer not authenticated on protected pages
+  useEffect(() => {
+    if (!loading && isProtected(location.pathname) && !token) {
+      navigate(`/play/${orgSlug}/login`, { replace: true });
+    }
+  }, [loading, location.pathname, token, orgSlug, navigate]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -44,6 +59,9 @@ export default function GamePortal() {
     </div>
   );
 
+  // Still on a protected route but no token — show nothing while redirecting
+  if (isProtected(location.pathname) && !token) return null;
+
   const bgStyle = orgData.settings?.backgroundImageUrl
     ? { backgroundImage: `url(${orgData.settings.backgroundImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' };
@@ -52,7 +70,6 @@ export default function GamePortal() {
     <OrgContext.Provider value={orgData}>
       <div className="min-h-screen" style={bgStyle}>
         <div className="min-h-screen bg-black/20">
-          {/* Header */}
           <header className="bg-white/10 backdrop-blur-sm border-b border-white/20 px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               {orgData.settings?.logoUrl
