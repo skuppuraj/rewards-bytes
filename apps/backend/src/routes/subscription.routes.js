@@ -8,11 +8,9 @@ const RazorpayConfig = require('../models/RazorpayConfig');
 
 async function getRazorpayInstance() {
   const cfg = await RazorpayConfig.findOne();
-  console.log('[Razorpay] config found:', !!cfg, '| mode:', cfg?.mode);
   if (!cfg) throw new Error('Razorpay not configured — please save keys in Super Admin');
   const keyId     = cfg.mode === 'live' ? cfg.liveKeyId     : cfg.testKeyId;
   const keySecret = cfg.mode === 'live' ? cfg.liveKeySecret : cfg.testKeySecret;
-  console.log('[Razorpay] keyId present:', !!keyId, '| secret present:', !!keySecret);
   if (!keyId || !keySecret) throw new Error(`Razorpay ${cfg.mode} keys not set — go to Super Admin > Razorpay`);
   return { instance: new Razorpay({ key_id: keyId, key_secret: keySecret }), keyId };
 }
@@ -32,11 +30,7 @@ router.get('/active', auth, async (req, res) => {
 router.post('/create-order', auth, async (req, res) => {
   try {
     const { planId } = req.body;
-    console.log('[create-order] planId:', planId, '| orgId:', req.orgId);
-
     const plan = await Plan.findById(planId);
-    console.log('[create-order] plan:', plan?.name, '| price:', plan?.price, '| isTrial:', plan?.isTrial);
-
     if (!plan)          return res.status(404).json({ error: 'Plan not found' });
     if (!plan.isActive) return res.status(400).json({ error: 'Plan is not available' });
 
@@ -64,14 +58,18 @@ router.post('/create-order', auth, async (req, res) => {
     }
 
     // PAID plan — Razorpay order
-    console.log('[create-order] creating Razorpay order for amount:', plan.price);
     const { instance, keyId } = await getRazorpayInstance();
+
+    // Receipt max 40 chars: rcpt_ + last 8 of orgId + _ + last 8 of timestamp
+    const shortOrg  = String(req.orgId).slice(-8);
+    const shortTs   = String(Date.now()).slice(-8);
+    const receipt   = `rcpt_${shortOrg}_${shortTs}`;  // 5+1+8+1+8 = 23 chars
+
     const order = await instance.orders.create({
       amount:   plan.price,
       currency: 'INR',
-      receipt:  `rcpt_${req.orgId}_${Date.now()}`,
+      receipt,
     });
-    console.log('[create-order] Razorpay order created:', order.id);
 
     await Subscription.create({
       organizationId:  req.orgId,
