@@ -15,54 +15,71 @@ function Section({ title, children }) {
 
 // ─── Plan Card ────────────────────────────────────────────────────────────────
 function PlanCard({ plan, currentSub, onBuy, buying }) {
-  const activeSub     = currentSub?.status === 'active';
-  const isThisPlan    = activeSub && String(currentSub?.planId?._id) === String(plan._id);
-  const isTrialActive = activeSub && currentSub?.isTrial;
+  const isActive      = currentSub?.status === 'active';
+  const isTrialActive = isActive && currentSub?.isTrial;
+  const isThisPlan    = isActive && String(currentSub?.planId?._id) === String(plan._id);
 
   const price     = plan.price === 0 ? 'Free' : `₹${(plan.price / 100).toLocaleString('en-IN')}`;
   const expiresAt = isThisPlan && currentSub?.expiresAt ? new Date(currentSub.expiresAt) : null;
   const daysLeft  = expiresAt ? Math.ceil((expiresAt - Date.now()) / 86400000) : null;
+  const isLoading = buying === plan._id;
 
-  // Decide CTA ─────────────────────────────────────────────────────────────
-  //  1. This is the currently active PAID plan  → show "Current Plan" (renew if ≤14d)
-  //  2. This is the currently active TRIAL plan → show "Current (Trial)" — NO upgrade on this card
-  //  3. Org is on trial & this is a PAID plan   → show "⬆️ Upgrade"
-  //  4. No active sub                           → show Buy / Activate Trial
+  // ── CTA logic ────────────────────────────────────────────────────────────
+  // Priority order:
+  //  A) Currently on trial (any plan)  → ALL non-free cards show "⬆️ Upgrade"
+  //     The trial card itself shows trial badge + "⬆️ Upgrade to Paid"
+  //  B) Active PAID plan, this card     → ✅ Current Plan (renew if ≤14d)
+  //  C) Active PAID plan, other card   → Buy / Switch
+  //  D) No active sub                  → Buy / Activate Trial
+
   let cta;
-  if (isThisPlan && !isTrialActive) {
-    // Active paid plan
-    cta = daysLeft <= 14
+
+  if (isTrialActive) {
+    // User is on trial — show upgrade on every paid plan (including the current trial plan)
+    if (plan.price === 0 && plan.isTrial) {
+      // This is purely a free/trial plan with no paid version — just show status
+      cta = { label: '🧪 Active Trial', disabled: true, trial: true };
+    } else {
+      // Paid plan card (or the same plan with a paid price) → show Upgrade button
+      const label = isThisPlan
+        ? `⬆️ Upgrade to Paid — ${price}`
+        : `⬆️ Upgrade — ${price}`;
+      cta = { label, action: () => onBuy(plan) };
+    }
+  } else if (isThisPlan && isActive) {
+    // Active paid plan card
+    cta = daysLeft !== null && daysLeft <= 14
       ? { label: `🔄 Renew — ${price}`, action: () => onBuy(plan), warn: true }
       : { label: '✅ Current Plan', disabled: true };
-  } else if (isThisPlan && isTrialActive) {
-    // This card IS the trial plan — just show status, no buy button
-    cta = { label: '🧪 Active Trial', disabled: true, trial: true };
-  } else if (isTrialActive && !plan.isTrial) {
-    // On trial, this is a different PAID plan → Upgrade CTA
-    cta = { label: `⬆️ Upgrade — ${price}`, action: () => onBuy(plan) };
   } else if (plan.isTrial || plan.price === 0) {
     cta = { label: 'Activate Free Trial', action: () => onBuy(plan) };
   } else {
     cta = { label: `Buy — ${price}`, action: () => onBuy(plan) };
   }
 
-  const isLoading = buying === plan._id;
+  // Border colour
+  const borderCls =
+    isThisPlan && isTrialActive  ? 'border-blue-300 bg-blue-50' :
+    isThisPlan && isActive       ? 'border-purple-400 bg-purple-50' :
+    isTrialActive && plan.price > 0 ? 'border-purple-300 bg-white shadow-sm ring-1 ring-purple-100' :
+    'border-gray-200 hover:border-gray-300';
 
   return (
-    <div className={`border-2 rounded-2xl p-5 flex flex-col gap-3 transition-all ${
-      isThisPlan && !isTrialActive ? 'border-purple-400 bg-purple-50' :
-      isThisPlan && isTrialActive  ? 'border-blue-300 bg-blue-50' :
-      isTrialActive && !plan.isTrial ? 'border-purple-200 hover:border-purple-400 shadow-sm' :
-      'border-gray-200 hover:border-gray-300'
-    }`}>
+    <div className={`border-2 rounded-2xl p-5 flex flex-col gap-3 transition-all ${borderCls}`}>
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <p className="font-bold text-gray-900 text-base">{plan.name}</p>
           <div className="flex gap-1.5 flex-wrap mt-1">
-            {plan.isTrial     && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Trial</span>}
-            {isThisPlan && isTrialActive  && <span className="text-xs bg-blue-100   text-blue-700   px-2 py-0.5 rounded-full">🧪 Active</span>}
-            {isThisPlan && !isTrialActive && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">✅ Active</span>}
+            {plan.isTrial && (
+              <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Trial</span>
+            )}
+            {isThisPlan && isTrialActive && (
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🧪 Active</span>
+            )}
+            {isThisPlan && !isTrialActive && isActive && (
+              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">✅ Active</span>
+            )}
           </div>
         </div>
         <div className="text-right">
@@ -83,7 +100,7 @@ function PlanCard({ plan, currentSub, onBuy, buying }) {
         </ul>
       )}
 
-      {/* Expiry badge for active plan */}
+      {/* Expiry badge */}
       {isThisPlan && expiresAt && (
         <div className={`text-xs font-semibold px-3 py-1.5 rounded-lg ${
           daysLeft <= 7 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'
@@ -93,7 +110,7 @@ function PlanCard({ plan, currentSub, onBuy, buying }) {
         </div>
       )}
 
-      {/* CTA Button */}
+      {/* CTA */}
       {cta.disabled ? (
         <div className={`mt-auto py-2.5 text-center text-sm font-bold rounded-xl ${
           cta.trial ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
@@ -105,9 +122,7 @@ function PlanCard({ plan, currentSub, onBuy, buying }) {
           onClick={cta.action}
           disabled={!!buying}
           className={`mt-auto text-sm py-2.5 rounded-xl font-semibold transition-all disabled:opacity-50 ${
-            cta.warn
-              ? 'bg-orange-500 hover:bg-orange-600 text-white'
-              : 'btn-primary'
+            cta.warn ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'btn-primary'
           }`}>
           {isLoading ? 'Processing...' : cta.label}
         </button>
@@ -168,20 +183,19 @@ export default function AccountPage() {
     try {
       const r = await api.post('/subscriptions/create-order', { planId: plan._id });
 
-      // Free trial activated directly
       if (r.data.trial) {
         toast.success('Trial activated! 🎉');
         await loadSub();
         return;
       }
 
-      // Paid plan — open Razorpay checkout
+      // Load Razorpay script if not already present
       if (!window.Razorpay) {
         await new Promise((resolve, reject) => {
-          const s    = document.createElement('script');
-          s.src      = 'https://checkout.razorpay.com/v1/checkout.js';
-          s.onload   = resolve;
-          s.onerror  = reject;
+          const s   = document.createElement('script');
+          s.src     = 'https://checkout.razorpay.com/v1/checkout.js';
+          s.onload  = resolve;
+          s.onerror = reject;
           document.body.appendChild(s);
         });
       }
@@ -202,9 +216,7 @@ export default function AccountPage() {
             toast.error('Payment verification failed. Contact support.');
           }
         },
-        modal: {
-          ondismiss: () => toast('Payment cancelled', { icon: 'ℹ️' }),
-        },
+        modal:   { ondismiss: () => toast('Payment cancelled', { icon: 'ℹ️' }) },
         prefill: { email: user?.email },
         theme:   { color: '#7c3aed' },
       });
@@ -235,7 +247,9 @@ export default function AccountPage() {
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <p className="font-bold text-gray-800">{sub.planId?.name}</p>
-              {isTrial && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🧪 Trial</span>}
+              {isTrial && (
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🧪 Trial</span>
+              )}
             </div>
             <p className={`text-sm ${ daysLeft <= 7 ? 'text-red-600 font-semibold' : 'text-gray-500' }`}>
               Expires {expiresAt?.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}
