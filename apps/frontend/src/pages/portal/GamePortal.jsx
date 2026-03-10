@@ -5,18 +5,24 @@ import { useCustomerStore } from '../../store/customerStore';
 
 export const OrgContext = React.createContext(null);
 
-// Routes that require customer to be logged in
-const PROTECTED_PATHS = ['/start/', '/play/', '/complete/', '/dashboard'];
-
-function isProtected(pathname) {
-  return PROTECTED_PATHS.some(p => pathname.includes(p));
+// Only these sub-paths require login — game list stays public
+function isProtected(pathname, orgSlug) {
+  const base = `/play/${orgSlug}`;
+  const sub  = pathname.replace(base, '');
+  return (
+    sub.startsWith('/start/')    ||
+    sub.startsWith('/play/')     ||  // /play/spin/ /play/scratch/ /play/popcorn/
+    sub.startsWith('/complete/') ||
+    sub === '/dashboard'         ||
+    sub.startsWith('/dashboard')
+  );
 }
 
 export default function GamePortal() {
   const { orgSlug } = useParams();
   const [orgData, setOrgData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { token } = useCustomerStore();
+  const { token }  = useCustomerStore();
   const navigate   = useNavigate();
   const location   = useLocation();
 
@@ -34,9 +40,9 @@ export default function GamePortal() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, [orgSlug]);
 
-  // Guard: redirect to login if customer not authenticated on protected pages
+  // Redirect to login if hitting a protected route without a token
   useEffect(() => {
-    if (!loading && isProtected(location.pathname) && !token) {
+    if (!loading && isProtected(location.pathname, orgSlug) && !token) {
       navigate(`/play/${orgSlug}/login`, { replace: true });
     }
   }, [loading, location.pathname, token, orgSlug, navigate]);
@@ -59,8 +65,8 @@ export default function GamePortal() {
     </div>
   );
 
-  // Still on a protected route but no token — show nothing while redirecting
-  if (isProtected(location.pathname) && !token) return null;
+  // Blank screen while redirect fires
+  if (isProtected(location.pathname, orgSlug) && !token) return null;
 
   const bgStyle = orgData.settings?.backgroundImageUrl
     ? { backgroundImage: `url(${orgData.settings.backgroundImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
