@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store/authStore';
+import { useSuperAdminStore } from './store/superAdminStore';
 import Layout from './components/Layout';
 import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
@@ -15,6 +16,8 @@ import CouponsPage from './pages/coupons/CouponsPage';
 import OrgSettingsPage from './pages/settings/OrgSettingsPage';
 import StaffPage from './pages/staff/StaffPage';
 import ReviewsPage from './pages/reviews/ReviewsPage';
+import SuperAdminLogin from './pages/superadmin/SuperAdminLogin';
+import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard';
 // Customer portal
 import GamePortal from './pages/portal/GamePortal';
 import PortalLogin from './pages/portal/PortalLogin';
@@ -33,6 +36,12 @@ const PrivateRoute = ({ children, adminOnly = false }) => {
   return children;
 };
 
+const SuperAdminRoute = ({ children }) => {
+  const { token } = useSuperAdminStore();
+  if (!token) return <Navigate to="/superadmin/login" replace />;
+  return children;
+};
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -43,7 +52,11 @@ export default function App() {
         <Route path="/signup"       element={<Signup />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
 
-        {/* Admin */}
+        {/* Super Admin */}
+        <Route path="/superadmin/login"     element={<SuperAdminLogin />} />
+        <Route path="/superadmin/dashboard" element={<SuperAdminRoute><SuperAdminDashboard /></SuperAdminRoute>} />
+
+        {/* Org Admin */}
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard"    element={<PrivateRoute adminOnly><Dashboard /></PrivateRoute>} />
@@ -54,7 +67,7 @@ export default function App() {
           <Route path="coupons"      element={<CouponsPage />} />
           <Route path="reviews"      element={<PrivateRoute adminOnly><ReviewsPage /></PrivateRoute>} />
           <Route path="settings"     element={<PrivateRoute adminOnly><OrgSettingsPage /></PrivateRoute>} />
-          <Route path="staff"        element={<PrivateRoute adminOnly><StaffPage /></PrivateRoute>} />
+          <Route path="staff"        element={<PrivateRoute adminOnly><StaffPage />  </PrivateRoute>} />
         </Route>
 
         {/* Customer Portal */}
