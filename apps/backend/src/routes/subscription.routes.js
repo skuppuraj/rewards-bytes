@@ -31,11 +31,12 @@ router.post('/create-order', auth, async (req, res) => {
   try {
     const { planId } = req.body;
     const plan = await Plan.findById(planId);
-    if (!plan)        return res.status(404).json({ error: 'Plan not found' });
+    if (!plan)          return res.status(404).json({ error: 'Plan not found' });
     if (!plan.isActive) return res.status(400).json({ error: 'Plan is not available' });
 
-    // Block: if org already has an active NON-trial sub, don't allow trial again
-    if (plan.isTrial || plan.price === 0) {
+    // ── FREE / TRIAL activation (only when price is 0) ───────────────────────────
+    if (plan.price === 0) {
+      // Block if already has active paid sub
       const existingPaid = await Subscription.findOne({
         organizationId: req.orgId,
         status: 'active',
@@ -44,8 +45,7 @@ router.post('/create-order', auth, async (req, res) => {
       if (existingPaid) {
         return res.status(400).json({ error: 'You already have an active paid plan.' });
       }
-
-      // Also block if they already used a trial for this plan
+      // Block if trial already used for this plan
       const usedTrial = await Subscription.findOne({
         organizationId: req.orgId,
         planId: plan._id,
@@ -66,7 +66,7 @@ router.post('/create-order', auth, async (req, res) => {
       return res.json({ trial: true, subscription: sub });
     }
 
-    // Paid plan — create Razorpay order
+    // ── PAID plan (price > 0) — always go through Razorpay ──────────────────────
     const { instance, keyId } = await getRazorpayInstance();
     const order = await instance.orders.create({
       amount:   plan.price,  // paise
@@ -75,8 +75,11 @@ router.post('/create-order', auth, async (req, res) => {
     });
 
     await Subscription.create({
-      organizationId: req.orgId, planId: plan._id,
-      razorpayOrderId: order.id, status: 'pending', amount: plan.price,
+      organizationId:  req.orgId,
+      planId:          plan._id,
+      razorpayOrderId: order.id,
+      status:          'pending',
+      amount:          plan.price,
     });
 
     res.json({ orderId: order.id, amount: plan.price, currency: 'INR', keyId });
@@ -107,6 +110,7 @@ router.post('/verify', auth, async (req, res) => {
     const start   = new Date();
     const expires = new Date(start.getTime() + sub.planId.durationDays * 86400000);
 
+    // Expire all previous active subs (including trial)
     await Subscription.updateMany(
       { organizationId: sub.organizationId, status: 'active' },
       { status: 'expired' }
@@ -114,6 +118,7 @@ router.post('/verify', auth, async (req, res) => {
 
     sub.razorpayPaymentId = razorpay_payment_id;
     sub.status    = 'active';
+    sub.isTrial   = false;   // always mark as paid on verify
     sub.startDate = start;
     sub.expiresAt = expires;
     await sub.save();
