@@ -2,17 +2,28 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import publicApi from '../../../lib/publicApi';
+import { useCustomerStore } from '../../../store/customerStore';
 
 export default function PlayCatchPopcorn() {
   const { orgSlug, sessionId } = useParams();
   const navigate = useNavigate();
+  const { token } = useCustomerStore();
   const [gameDone, setGameDone] = useState(false);
   const savedRef = useRef(false);
-
-  // Fetch session config so we can pass duration + winThreshold to the iframe
   const [iframeSrc, setIframeSrc] = useState(null);
 
+  // Auth guard — redirect to login, return here after
   useEffect(() => {
+    if (!token) {
+      navigate(`/play/${orgSlug}/login`, {
+        replace: true,
+        state: { returnTo: `/play/${orgSlug}/play/popcorn/${sessionId}` }
+      });
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
     publicApi.get(`/game/session/${sessionId}`).then(r => {
       const cfg = r.data?.orgGameId;
       const durationSecs = Math.round((cfg?.timerMinutes || 0) * 60) || (cfg?.gameConfig?.durationSeconds) || 20;
@@ -21,9 +32,10 @@ export default function PlayCatchPopcorn() {
     }).catch(() => {
       setIframeSrc('/games/catch-popcorn/index.html?duration=20&winThreshold=10');
     });
-  }, [sessionId]);
+  }, [sessionId, token]);
 
   useEffect(() => {
+    if (!token) return;
     const handleMessage = async (event) => {
       if (event.data?.type === 'GAME_COMPLETE' && !savedRef.current) {
         savedRef.current = true;
@@ -44,7 +56,10 @@ export default function PlayCatchPopcorn() {
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [sessionId, orgSlug, navigate]);
+  }, [sessionId, orgSlug, navigate, token]);
+
+  // Don't render anything while redirecting
+  if (!token) return null;
 
   if (!iframeSrc) return (
     <div style={{ position: 'fixed', inset: 0, background: '#1a0a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
