@@ -13,7 +13,6 @@ function Section({ title, children }) {
   );
 }
 
-// ─── Plan Card ────────────────────────────────────────────────────────────────
 function PlanCard({ plan, currentSub, onBuy, buying }) {
   const isActive      = currentSub?.status === 'active';
   const isTrialActive = isActive && currentSub?.isTrial;
@@ -24,30 +23,17 @@ function PlanCard({ plan, currentSub, onBuy, buying }) {
   const daysLeft  = expiresAt ? Math.ceil((expiresAt - Date.now()) / 86400000) : null;
   const isLoading = buying === plan._id;
 
-  // ── CTA logic ────────────────────────────────────────────────────────────
-  // Priority order:
-  //  A) Currently on trial (any plan)  → ALL non-free cards show "⬆️ Upgrade"
-  //     The trial card itself shows trial badge + "⬆️ Upgrade to Paid"
-  //  B) Active PAID plan, this card     → ✅ Current Plan (renew if ≤14d)
-  //  C) Active PAID plan, other card   → Buy / Switch
-  //  D) No active sub                  → Buy / Activate Trial
-
   let cta;
-
   if (isTrialActive) {
-    // User is on trial — show upgrade on every paid plan (including the current trial plan)
     if (plan.price === 0 && plan.isTrial) {
-      // This is purely a free/trial plan with no paid version — just show status
       cta = { label: '🧪 Active Trial', disabled: true, trial: true };
     } else {
-      // Paid plan card (or the same plan with a paid price) → show Upgrade button
-      const label = isThisPlan
-        ? `⬆️ Upgrade to Paid — ${price}`
-        : `⬆️ Upgrade — ${price}`;
-      cta = { label, action: () => onBuy(plan) };
+      cta = {
+        label: isThisPlan ? `⬆️ Upgrade to Paid — ${price}` : `⬆️ Upgrade — ${price}`,
+        action: () => onBuy(plan),
+      };
     }
   } else if (isThisPlan && isActive) {
-    // Active paid plan card
     cta = daysLeft !== null && daysLeft <= 14
       ? { label: `🔄 Renew — ${price}`, action: () => onBuy(plan), warn: true }
       : { label: '✅ Current Plan', disabled: true };
@@ -57,29 +43,21 @@ function PlanCard({ plan, currentSub, onBuy, buying }) {
     cta = { label: `Buy — ${price}`, action: () => onBuy(plan) };
   }
 
-  // Border colour
   const borderCls =
-    isThisPlan && isTrialActive  ? 'border-blue-300 bg-blue-50' :
-    isThisPlan && isActive       ? 'border-purple-400 bg-purple-50' :
-    isTrialActive && plan.price > 0 ? 'border-purple-300 bg-white shadow-sm ring-1 ring-purple-100' :
+    isThisPlan && isTrialActive      ? 'border-blue-300 bg-blue-50' :
+    isThisPlan && isActive           ? 'border-purple-400 bg-purple-50' :
+    isTrialActive && plan.price > 0  ? 'border-purple-300 bg-white shadow-sm' :
     'border-gray-200 hover:border-gray-300';
 
   return (
     <div className={`border-2 rounded-2xl p-5 flex flex-col gap-3 transition-all ${borderCls}`}>
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <p className="font-bold text-gray-900 text-base">{plan.name}</p>
           <div className="flex gap-1.5 flex-wrap mt-1">
-            {plan.isTrial && (
-              <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Trial</span>
-            )}
-            {isThisPlan && isTrialActive && (
-              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🧪 Active</span>
-            )}
-            {isThisPlan && !isTrialActive && isActive && (
-              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">✅ Active</span>
-            )}
+            {plan.isTrial && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Trial</span>}
+            {isThisPlan && isTrialActive  && <span className="text-xs bg-blue-100   text-blue-700   px-2 py-0.5 rounded-full">🧪 Active</span>}
+            {isThisPlan && !isTrialActive && isActive && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">✅ Active</span>}
           </div>
         </div>
         <div className="text-right">
@@ -93,34 +71,26 @@ function PlanCard({ plan, currentSub, onBuy, buying }) {
       {plan.features?.length > 0 && (
         <ul className="space-y-1">
           {plan.features.map((f, i) => (
-            <li key={i} className="text-sm text-gray-600 flex gap-2">
-              <span className="text-green-500 flex-shrink-0">✓</span>{f}
-            </li>
+            <li key={i} className="text-sm text-gray-600 flex gap-2"><span className="text-green-500">✓</span>{f}</li>
           ))}
         </ul>
       )}
 
-      {/* Expiry badge */}
       {isThisPlan && expiresAt && (
         <div className={`text-xs font-semibold px-3 py-1.5 rounded-lg ${
           daysLeft <= 7 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'
         }`}>
           ⏳ Expires {expiresAt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}
-          {daysLeft !== null && ` · ${daysLeft > 0 ? `${daysLeft} days left` : 'Expired'}`}
+          {daysLeft !== null && ` · ${daysLeft > 0 ? `${daysLeft}d left` : 'Expired'}`}
         </div>
       )}
 
-      {/* CTA */}
       {cta.disabled ? (
         <div className={`mt-auto py-2.5 text-center text-sm font-bold rounded-xl ${
           cta.trial ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-        }`}>
-          {cta.label}
-        </div>
+        }`}>{cta.label}</div>
       ) : (
-        <button
-          onClick={cta.action}
-          disabled={!!buying}
+        <button onClick={cta.action} disabled={!!buying}
           className={`mt-auto text-sm py-2.5 rounded-xl font-semibold transition-all disabled:opacity-50 ${
             cta.warn ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'btn-primary'
           }`}>
@@ -131,7 +101,6 @@ function PlanCard({ plan, currentSub, onBuy, buying }) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function AccountPage() {
   const { org, user, token, setAuth } = useAuthStore();
   const [plans, setPlans]             = useState([]);
@@ -144,9 +113,7 @@ export default function AccountPage() {
   const [buyingPlan, setBuyingPlan]   = useState(null);
 
   const loadSub = () =>
-    api.get('/subscriptions/active')
-       .then(r => setSub(r.data))
-       .catch(() => setSub(null));
+    api.get('/subscriptions/active').then(r => setSub(r.data)).catch(() => setSub(null));
 
   useEffect(() => {
     Promise.all([api.get('/plans'), api.get('/subscriptions/active')])
@@ -189,13 +156,11 @@ export default function AccountPage() {
         return;
       }
 
-      // Load Razorpay script if not already present
       if (!window.Razorpay) {
         await new Promise((resolve, reject) => {
-          const s   = document.createElement('script');
-          s.src     = 'https://checkout.razorpay.com/v1/checkout.js';
-          s.onload  = resolve;
-          s.onerror = reject;
+          const s = document.createElement('script');
+          s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          s.onload = resolve; s.onerror = reject;
           document.body.appendChild(s);
         });
       }
@@ -212,8 +177,8 @@ export default function AccountPage() {
             await api.post('/subscriptions/verify', response);
             toast.success('Payment successful! Plan activated 🎉');
             await loadSub();
-          } catch {
-            toast.error('Payment verification failed. Contact support.');
+          } catch (e) {
+            toast.error(e.response?.data?.error || 'Payment verification failed');
           }
         },
         modal:   { ondismiss: () => toast('Payment cancelled', { icon: 'ℹ️' }) },
@@ -222,7 +187,11 @@ export default function AccountPage() {
       });
       rzp.open();
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to initiate payment');
+      // Show the real error from backend
+      const msg    = err.response?.data?.error   || err.message || 'Failed to initiate payment';
+      const detail = err.response?.data?.detail  || '';
+      toast.error(detail ? `${msg}: ${detail}` : msg, { duration: 5000 });
+      console.error('[handleBuy] error:', err.response?.data || err.message);
     } finally {
       setBuyingPlan(null);
     }
@@ -237,7 +206,6 @@ export default function AccountPage() {
     <div className="p-6 max-w-3xl mx-auto">
       <PageHeader title="Account" subtitle="Manage your account settings and subscription" />
 
-      {/* Current Plan Banner */}
       {isActive ? (
         <div className={`rounded-2xl p-4 mb-5 flex items-center justify-between border-2 ${
           daysLeft <= 7 ? 'bg-red-50 border-red-200' :
@@ -247,9 +215,7 @@ export default function AccountPage() {
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <p className="font-bold text-gray-800">{sub.planId?.name}</p>
-              {isTrial && (
-                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🧪 Trial</span>
-              )}
+              {isTrial && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🧪 Trial</span>}
             </div>
             <p className={`text-sm ${ daysLeft <= 7 ? 'text-red-600 font-semibold' : 'text-gray-500' }`}>
               Expires {expiresAt?.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}
@@ -268,36 +234,29 @@ export default function AccountPage() {
         </div>
       )}
 
-      {/* Organization Name */}
       <Section title="🏢 Organization Name">
         <div className="flex gap-3">
-          <input className="input flex-1" value={orgName}
-            onChange={e => setOrgName(e.target.value)} placeholder="Organization name" />
+          <input className="input flex-1" value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="Organization name" />
           <button className="btn-primary" onClick={handleChangeName} disabled={savingName}>
             {savingName ? 'Saving...' : 'Update'}
           </button>
         </div>
       </Section>
 
-      {/* Change Password */}
       <Section title="🔒 Change Password">
         <div className="space-y-3">
           <input className="input w-full" type="password" placeholder="Current password"
-            value={pwForm.currentPassword}
-            onChange={e => setPwForm(p => ({...p, currentPassword: e.target.value}))} />
+            value={pwForm.currentPassword} onChange={e => setPwForm(p => ({...p, currentPassword: e.target.value}))} />
           <input className="input w-full" type="password" placeholder="New password (min 6 chars)"
-            value={pwForm.newPassword}
-            onChange={e => setPwForm(p => ({...p, newPassword: e.target.value}))} />
+            value={pwForm.newPassword} onChange={e => setPwForm(p => ({...p, newPassword: e.target.value}))} />
           <input className="input w-full" type="password" placeholder="Confirm new password"
-            value={pwForm.confirm}
-            onChange={e => setPwForm(p => ({...p, confirm: e.target.value}))} />
+            value={pwForm.confirm} onChange={e => setPwForm(p => ({...p, confirm: e.target.value}))} />
           <button className="btn-primary" onClick={handleChangePassword} disabled={savingPw}>
             {savingPw ? 'Updating...' : 'Change Password'}
           </button>
         </div>
       </Section>
 
-      {/* Plans */}
       <Section title="💳 Subscription Plans">
         {isTrial && (
           <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 text-sm text-blue-700">
@@ -311,13 +270,7 @@ export default function AccountPage() {
         ) : (
           <div className="grid sm:grid-cols-2 gap-4">
             {plans.map(p => (
-              <PlanCard
-                key={p._id}
-                plan={p}
-                currentSub={sub}
-                onBuy={handleBuy}
-                buying={buyingPlan}
-              />
+              <PlanCard key={p._id} plan={p} currentSub={sub} onBuy={handleBuy} buying={buyingPlan} />
             ))}
           </div>
         )}
