@@ -5,23 +5,18 @@ import { useCustomerStore } from '../../store/customerStore';
 
 export const OrgContext = React.createContext(null);
 
-// Only actual game-play and completion require login
-// Game list (/), login (/login), and rules/info (/start/:id) are all PUBLIC
-function isProtected(pathname, orgSlug) {
-  const sub = pathname.replace(`/play/${orgSlug}`, '');
-  return (
-    sub.startsWith('/play/')      ||   // /play/spin/ /play/scratch/ /play/popcorn/
-    sub.startsWith('/complete/')  ||
-    sub === '/dashboard'          ||
-    sub.startsWith('/dashboard/')
-  );
+// Routes that require customer to be logged in
+const PROTECTED_PATHS = ['/start/', '/play/', '/complete/', '/dashboard'];
+
+function isProtected(pathname) {
+  return PROTECTED_PATHS.some(p => pathname.includes(p));
 }
 
 export default function GamePortal() {
   const { orgSlug } = useParams();
   const [orgData, setOrgData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { token }  = useCustomerStore();
+  const { token } = useCustomerStore();
   const navigate   = useNavigate();
   const location   = useLocation();
 
@@ -39,8 +34,9 @@ export default function GamePortal() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, [orgSlug]);
 
+  // Guard: redirect to login if customer not authenticated on protected pages
   useEffect(() => {
-    if (!loading && isProtected(location.pathname, orgSlug) && !token) {
+    if (!loading && isProtected(location.pathname) && !token) {
       navigate(`/play/${orgSlug}/login`, { replace: true });
     }
   }, [loading, location.pathname, token, orgSlug, navigate]);
@@ -63,7 +59,8 @@ export default function GamePortal() {
     </div>
   );
 
-  if (isProtected(location.pathname, orgSlug) && !token) return null;
+  // Still on a protected route but no token — show nothing while redirecting
+  if (isProtected(location.pathname) && !token) return null;
 
   const bgStyle = orgData.settings?.backgroundImageUrl
     ? { backgroundImage: `url(${orgData.settings.backgroundImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }

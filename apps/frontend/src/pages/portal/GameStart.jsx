@@ -2,13 +2,13 @@ import React, { useEffect, useState, useContext } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import publicApi from '../../lib/publicApi';
-import { useCustomerStore } from '../../store/customerStore';
 import { OrgContext } from './GamePortal';
 
+// Build dynamic rules based on live gameConfig values
 function getDynamicRules(gameKey, gameConfig = {}, staticRules = []) {
   if (gameKey === 'catch_popcorn') {
-    const threshold  = gameConfig.winThreshold  ?? 10;
-    const totalSecs  = gameConfig.durationSeconds ?? 20;
+    const threshold = gameConfig.winThreshold ?? 10;
+    const totalSecs = gameConfig.durationSeconds ?? 20;
     const mins = Math.floor(totalSecs / 60);
     const secs = totalSecs % 60;
     const durationLabel = mins > 0
@@ -16,7 +16,7 @@ function getDynamicRules(gameKey, gameConfig = {}, staticRules = []) {
       : `${secs} seconds`;
     return [
       'Drag the bucket left and right to catch falling popcorn.',
-      'Normal popcorn: +1 point. Golden popcorn: +3 points. Burnt popcorn: −1 point.',
+      'Normal popcorn: +1 point. Golden popcorn: +3 points. Burnt popcorn: -1 point.',
       `Catch at least ${threshold} popcorns to win a reward.`,
       `Game lasts ${durationLabel}. Speed increases as time goes on!`,
     ];
@@ -26,9 +26,8 @@ function getDynamicRules(gameKey, gameConfig = {}, staticRules = []) {
 
 export default function GameStart() {
   const { orgSlug, orgGameId } = useParams();
-  const orgData    = useContext(OrgContext);
-  const { token }  = useCustomerStore();
-  const navigate   = useNavigate();
+  const orgData = useContext(OrgContext);
+  const navigate = useNavigate();
   const [orgGame, setOrgGame] = useState(null);
   const [starting, setStarting] = useState(false);
 
@@ -37,16 +36,9 @@ export default function GameStart() {
       const g = r.data.find(og => og._id === orgGameId);
       setOrgGame(g);
     });
-  }, [orgGameId, orgData]);
+  }, [orgGameId]);
 
   const handleStart = async () => {
-    // If not logged in — redirect to login, come back here after
-    if (!token) {
-      navigate(`/play/${orgSlug}/login`, {
-        state: { returnTo: `/play/${orgSlug}/start/${orgGameId}` }
-      });
-      return;
-    }
     setStarting(true);
     try {
       const { data: session } = await publicApi.post('/game/start', { orgGameId });
@@ -61,34 +53,31 @@ export default function GameStart() {
     }
   };
 
-  if (!orgGame) return (
-    <div className="text-center text-white py-12">
-      <div className="text-4xl animate-spin mb-3">⏳</div>
-      <p className="text-white/70 text-sm">Loading game info...</p>
-    </div>
-  );
+  if (!orgGame) return <div className="text-center text-white py-12">⏳ Loading...</div>;
 
-  const game       = orgGame.gameId;
+  const game    = orgGame.gameId;
   const gameConfig = orgGame.gameConfig || {};
   const gameIcon   = { spin_wheel: '🎡', scratch_card: '🃏', catch_popcorn: '🍿' }[game.key] || '🎮';
   const rules      = getDynamicRules(game.key, gameConfig, game.rules || []);
 
   const showConfigChips = game.key === 'catch_popcorn';
-  const threshold  = gameConfig.winThreshold   ?? 10;
+  const threshold  = gameConfig.winThreshold ?? 10;
   const totalSecs  = gameConfig.durationSeconds ?? 20;
   const mins       = Math.floor(totalSecs / 60);
   const secs       = totalSecs % 60;
-  const durationLabel = mins > 0 ? `${mins}m${secs > 0 ? ` ${secs}s` : ''}` : `${secs}s`;
+  const durationLabel = mins > 0
+    ? `${mins}m ${secs > 0 ? secs + 's' : ''}`
+    : `${secs}s`;
 
   return (
     <div className="max-w-md mx-auto px-4 py-6">
       <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-
         {/* Header */}
         <div className="p-6 text-center" style={{ background: 'linear-gradient(135deg, var(--brand-btn, #6366f1), var(--brand-btn2, #8b5cf6))' }}>
           <div className="text-5xl mb-3">{gameIcon}</div>
           <h2 className="text-xl font-bold text-white">{game.name}</h2>
           <p className="text-white/80 text-sm mt-1">{game.shortDescription}</p>
+
           {showConfigChips && (
             <div className="flex justify-center gap-2 mt-3">
               <span className="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full">
@@ -102,7 +91,7 @@ export default function GameStart() {
         </div>
 
         <div className="p-5">
-          {/* Rewards */}
+          {/* Rewards Preview */}
           {orgGame.assignedOffers?.length > 0 && (
             <div className="mb-4">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">🎁 Possible Rewards</h3>
@@ -122,14 +111,16 @@ export default function GameStart() {
             </div>
           )}
 
-          {/* Rules */}
+          {/* Dynamic Rules */}
           {rules.length > 0 && (
             <div className="mb-5">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">📝 Game Rules</h3>
               <ul className="space-y-1.5">
                 {rules.map((r, i) => (
                   <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
-                    <span className="w-4 h-4 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold flex-shrink-0 text-[10px]">{i + 1}</span>
+                    <span className="w-4 h-4 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold flex-shrink-0 text-[10px]">
+                      {i + 1}
+                    </span>
                     {r}
                   </li>
                 ))}
@@ -143,13 +134,6 @@ export default function GameStart() {
             </div>
           )}
 
-          {/* Login notice if not logged in */}
-          {!token && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-xl text-center">
-              <p className="text-xs text-blue-600 font-medium">🔑 You’ll be asked to login before the game starts</p>
-            </div>
-          )}
-
           <div className="flex gap-3">
             <button onClick={() => navigate(-1)}
               className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">
@@ -158,7 +142,7 @@ export default function GameStart() {
             <button onClick={handleStart} disabled={starting}
               className="flex-1 py-3 rounded-xl text-white font-bold text-sm"
               style={{ background: 'var(--brand-btn, #6366f1)' }}>
-              {starting ? 'Starting...' : token ? `${gameIcon} Start Game!` : `🔑 Login & Play`}
+              {starting ? 'Starting...' : `${gameIcon} Start Game!`}
             </button>
           </div>
         </div>
