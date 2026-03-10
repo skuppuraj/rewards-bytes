@@ -1,69 +1,67 @@
-import { useEffect, useState } from 'react';
-import { useLocation, useSearchParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Trophy, MailCheck, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
-import api from '@/lib/api';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
+import api from '../../lib/api';
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
-  const location = useLocation();
-  const navigate = useNavigate();
   const token = searchParams.get('token');
-  const email = location.state?.email;
-  const [status, setStatus] = useState(token ? 'verifying' : 'pending');
+  const [status, setStatus] = useState('loading'); // 'loading' | 'success' | 'error'
+  const [message, setMessage] = useState('');
+  const [orgName, setOrgName] = useState('');
 
   useEffect(() => {
-    if (token) {
-      api.get(`/auth/verify-email?token=${token}`)
-        .then(() => setStatus('success'))
-        .catch(() => setStatus('error'));
+    if (!token) {
+      setStatus('error');
+      setMessage('Verification token is missing.');
+      return;
     }
+    api.get(`/auth/verify-email?token=${token}`)
+      .then(r => {
+        setOrgName(r.data.orgName || '');
+        setStatus('success');
+      })
+      .catch(err => {
+        setMessage(err.response?.data?.error || 'Verification failed.');
+        setStatus('error');
+      });
   }, [token]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center">
-            <Trophy className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-gray-900">Rewards Bytes</span>
-        </div>
-        <Card>
-          <CardContent className="pt-6 text-center space-y-4">
-            {status === 'pending' && (
-              <>
-                <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center mx-auto">
-                  <MailCheck className="w-8 h-8 text-indigo-600" />
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900">Check your inbox</h2>
-                <p className="text-sm text-gray-500">We sent a verification link to <strong>{email}</strong>.</p>
-                <Button variant="outline" className="w-full" onClick={() => navigate('/login')}>Back to Login</Button>
-              </>
-            )}
-            {status === 'verifying' && <><Loader2 className="w-10 h-10 animate-spin text-indigo-600 mx-auto" /><p className="text-gray-600">Verifying...</p></>}
-            {status === 'success' && (
-              <>
-                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-                  <CheckCircle2 className="w-8 h-8 text-green-600" />
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900">Email Verified!</h2>
-                <p className="text-sm text-gray-500">Your organization is now active.</p>
-                <Button className="w-full" onClick={() => navigate('/login')}>Go to Login</Button>
-              </>
-            )}
-            {status === 'error' && (
-              <>
-                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
-                  <XCircle className="w-8 h-8 text-red-600" />
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900">Verification Failed</h2>
-                <Button variant="outline" className="w-full" onClick={() => navigate('/signup')}>Try Again</Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-white">
+      <div className="card p-8 w-full max-w-sm text-center">
+        <div className="w-12 h-12 bg-brand rounded-xl flex items-center justify-center text-white text-2xl font-bold mx-auto mb-5">R</div>
+
+        {status === 'loading' && (
+          <>
+            <div className="text-4xl mb-3 animate-pulse">⏳</div>
+            <h2 className="text-lg font-bold text-gray-800">Verifying your email...</h2>
+            <p className="text-sm text-gray-400 mt-1">Please wait a moment.</p>
+          </>
+        )}
+
+        {status === 'success' && (
+          <>
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">✅</div>
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Email Verified!</h2>
+            {orgName && <p className="text-sm text-gray-500 mb-1">Welcome, <strong>{orgName}</strong>!</p>}
+            <p className="text-sm text-gray-500 mb-6">Your account is now active. You can log in to your dashboard.</p>
+            <Link to="/login" className="btn-primary w-full py-2.5 block text-center">
+              🚀 Go to Login
+            </Link>
+          </>
+        )}
+
+        {status === 'error' && (
+          <>
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">❌</div>
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Verification Failed</h2>
+            <p className="text-sm text-gray-500 mb-6">{message}</p>
+            <Link to="/signup" className="btn-primary w-full py-2.5 block text-center mb-2">
+              Try signing up again
+            </Link>
+            <Link to="/login" className="text-sm text-brand font-medium">Back to login</Link>
+          </>
+        )}
       </div>
     </div>
   );
