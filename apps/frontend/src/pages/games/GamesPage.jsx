@@ -42,6 +42,8 @@ function GameExtraConfig({ gameKey, form, setForm }) {
     return (
       <div className="space-y-4 pt-2 border-t border-gray-100">
         <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">🍿 Catch Popcorn Settings</p>
+
+        {/* Win threshold */}
         <div>
           <label className="label">Popcorn to Catch to Win</label>
           <input className="input" type="number" min="1" max="100"
@@ -49,6 +51,8 @@ function GameExtraConfig({ gameKey, form, setForm }) {
             onChange={e => setForm(p => ({ ...p, gameConfig: { ...p.gameConfig, winThreshold: parseInt(e.target.value) || 1 } }))}
           />
         </div>
+
+        {/* Duration */}
         <div>
           <label className="label">Game Duration</label>
           <div className="flex gap-2">
@@ -67,6 +71,41 @@ function GameExtraConfig({ gameKey, form, setForm }) {
           </div>
           <p className="text-xs text-gray-400 mt-1">Total: <strong>{mins*60+secs}s</strong></p>
         </div>
+
+        {/* ─── Try Again ────────────────────────────────────────────── */}
+        <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">🔄 Try Again</p>
+              <p className="text-xs text-gray-400 mt-0.5">Let players retry if they don't win</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" className="sr-only peer"
+                checked={(form.gameConfig?.maxTries ?? 1) > 1}
+                onChange={e => setForm(p => ({ ...p, gameConfig: { ...p.gameConfig, maxTries: e.target.checked ? 2 : 1 } }))}
+              />
+              <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-brand peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all" />
+            </label>
+          </div>
+
+          {(form.gameConfig?.maxTries ?? 1) > 1 && (
+            <div>
+              <label className="text-xs text-gray-600 font-semibold mb-1 block">Number of Attempts</label>
+              <div className="flex items-center gap-3">
+                <input className="input w-24" type="number" min="2" max="10"
+                  value={form.gameConfig?.maxTries ?? 2}
+                  onChange={e => setForm(p => ({ ...p, gameConfig: { ...p.gameConfig, maxTries: Math.min(10, Math.max(2, parseInt(e.target.value)||2)) } }))}
+                />
+                <span className="text-xs text-gray-400">max 10 attempts</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1.5">
+                💡 Player can retry up to <strong className="text-purple-700">{form.gameConfig?.maxTries ?? 2} times</strong> if they lose.
+                Best score wins.
+              </p>
+            </div>
+          )}
+        </div>
+        {/* ──────────────────────────────────────────────────────────── */}
       </div>
     );
   }
@@ -97,10 +136,9 @@ function GameExtraConfig({ gameKey, form, setForm }) {
   return null;
 }
 
-// mode: 'yours' | 'marketplace'
 function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, mode = 'yours' }) {
   const meta        = GAME_META[game.key] || { icon: '❓', preview: null };
-  const isAdded     = !!game.orgConfig;           // has been configured/added
+  const isAdded     = !!game.orgConfig;
   const enabled     = game.orgConfig?.isEnabled;
   const offersCount = game.orgConfig?.assignedOffers?.length || 0;
   const gc          = game.orgConfig?.gameConfig || {};
@@ -109,7 +147,6 @@ function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, mode = 'your
 
   return (
     <div className="card p-5 flex flex-col">
-      {/* Header row */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center text-2xl">{meta.icon}</div>
@@ -124,7 +161,6 @@ function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, mode = 'your
             )}
           </div>
         </div>
-
         <div className="flex items-center gap-2">
           {meta.preview && (
             <button onClick={() => onPreview(game)}
@@ -133,36 +169,26 @@ function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, mode = 'your
             </button>
           )}
           <button onClick={() => onInfo(game)}
-            className="text-xs text-gray-400 hover:text-brand px-2 py-1 rounded border border-gray-200">
-            Info
-          </button>
-
-          {/* Toggle: always show in 'yours', show only if added in 'marketplace' */}
+            className="text-xs text-gray-400 hover:text-brand px-2 py-1 rounded border border-gray-200">Info</button>
           {(mode === 'yours' || isAdded) && (
             <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer"
-                checked={!!enabled}
-                onChange={e => onToggle(game, e.target.checked)}
-              />
+              <input type="checkbox" className="sr-only peer" checked={!!enabled} onChange={e => onToggle(game, e.target.checked)} />
               <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-brand peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all" />
             </label>
           )}
         </div>
       </div>
-
-      {/* Name + description */}
       <h3 className="font-semibold text-gray-900">{game.name}</h3>
       <p className="text-xs text-gray-500 mt-1 mb-3 flex-1">{game.shortDescription}</p>
-
-      {/* Config chips */}
       {game.key === 'catch_popcorn' && gc.winThreshold && (
         <div className="flex gap-2 mb-3 flex-wrap">
           <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full font-medium">🍿 Win: {gc.winThreshold} catches</span>
           <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">⏱ {durationMins > 0 ? `${durationMins}m ` : ''}{durationSecs}s</span>
+          {gc.maxTries > 1 && (
+            <span className="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-medium">🔄 {gc.maxTries} tries</span>
+          )}
         </div>
       )}
-
-      {/* Status + offers row */}
       <div className="flex items-center justify-between mt-auto pt-2">
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
           !isAdded ? 'bg-gray-100 text-gray-400'
@@ -173,8 +199,6 @@ function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, mode = 'your
         </span>
         <span className="text-xs text-gray-400">{offersCount} offer{offersCount !== 1 ? 's' : ''}</span>
       </div>
-
-      {/* Bottom action button */}
       {mode === 'yours' && (
         <button onClick={() => onConfigure(game)} className="mt-3 btn-secondary w-full text-xs py-1.5">Configure</button>
       )}
@@ -187,7 +211,6 @@ function GameCard({ game, onConfigure, onInfo, onPreview, onToggle, mode = 'your
   );
 }
 
-// ── Marketplace Tab ───────────────────────────────────────────────────────────
 function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
   const [games, setGames]         = useState([]);
   const [search, setSearch]       = useState('');
@@ -229,7 +252,6 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
 
   return (
     <div>
-      {/* Filters — single line */}
       <div className="card p-3 mb-5">
         <div className="flex items-center gap-2">
           <div className="relative flex-1 min-w-0">
@@ -255,7 +277,6 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
           </button>
         </div>
       </div>
-
       {games.length === 0 && !loading ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-4xl mb-2">🎮</p>
@@ -270,7 +291,6 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
           ))}
         </div>
       )}
-
       <div ref={loaderRef} className="py-6 text-center">
         {loading && <span className="text-sm text-gray-400">⏳ Loading more...</span>}
         {!hasMore && games.length > 0 && <span className="text-xs text-gray-300">— All games loaded —</span>}
@@ -279,11 +299,9 @@ function MarketplaceTab({ onConfigure, onInfo, onPreview, onToggle }) {
   );
 }
 
-// ── Your Games Tab ────────────────────────────────────────────────────────────
 function YourGamesTab({ onConfigure, onInfo, onPreview, onToggle, games }) {
   const active   = games.filter(g => g.orgConfig?.isEnabled);
   const inactive = games.filter(g => g.orgConfig && !g.orgConfig?.isEnabled);
-
   if (games.filter(g => g.orgConfig).length === 0) return (
     <div className="text-center py-16 text-gray-400">
       <p className="text-4xl mb-2">🎮</p>
@@ -291,7 +309,6 @@ function YourGamesTab({ onConfigure, onInfo, onPreview, onToggle, games }) {
       <p className="text-sm mt-1">Go to <strong>Marketplace</strong> to add games</p>
     </div>
   );
-
   return (
     <div className="space-y-6">
       {active.length > 0 && (
@@ -314,7 +331,6 @@ function YourGamesTab({ onConfigure, onInfo, onPreview, onToggle, games }) {
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function GamesPage() {
   const [tab, setTab]                 = useState('yours');
   const [games, setGames]             = useState([]);
@@ -377,8 +393,6 @@ export default function GamesPage() {
   return (
     <div className="p-6">
       <PageHeader title="Games" subtitle="Manage and discover games for your customers" />
-
-      {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-6">
         {[
           { id: 'yours',       label: '🎮 Your Games',  badge: games.filter(g => g.orgConfig?.isEnabled).length },
